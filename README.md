@@ -42,3 +42,31 @@ First, it's necessary to record a sensor group just one time.
     }
 ]
 ```
+
+=======
+Creating A Camera Sensor from a XML Calibration
+=======
+Example Calib file : data/AutoCal_Foc-12000_Cam-Caml024_20161205a.xml
+
+3 referentials need to be created :
+- 1. the Euclidean external referential: the camera node is at the origin, and it is oriented with +Z in front of the camera (the optical axis), +X to the right of the camera and +Y to the bottom of the camera.
+- 2. ideal image frame: X and Y are the raster coordinates in pixels that would used to lookup the pixel values if the camera were an ideal pinhole camera, Z is the inverse depth (measured along the optical axis).
+- 3. distorted image frame : X and Y are the raster coordinates in pixels used to lookup the pixel values, Z is the inverse depth (measured along the optical axis).
+
+2 transforms need to be created :
+- 1->2. Projective Pinhole Transform : ppa is given by`PP`, focal by `F`
+- 2->3. Distorsion Transform : distorsion type and parameters are in `CalibDistortion` (see [micmac documentation](https://github.com/micmacIGN/Documentation/blob/master/DocMicMac.pdf))
+
+=======
+Creating A Sensor Group from a Blini
+=======
+Example Blini file : data/blinis_20161205.xml
+
+N+1 referentials need to be created :
+- 1 is the base referential
+- 1 for each of the N XML nodes `ParamOrientSHC` should create a referential, named using `ParamOrientSHC/IdGrp`
+
+N affine transforms need to be created, linking the base referencial to each of the camera position referentials :
+- The translation part is given by `ParamOrientSHC/Vecteur`
+- The linear part, which happen to be a rotation, is given by `ParamOrientSHC/Rot`
+
