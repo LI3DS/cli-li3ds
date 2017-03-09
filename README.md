@@ -6,8 +6,6 @@ This project is a toolchain to fill li3ds datastore.
 
 ----
 
-.. contents::
-
 =======
 Context
 =======
