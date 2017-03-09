@@ -48,6 +48,17 @@ Creating A Camera Sensor from a XML Calibration
 =======
 Example Calib file : data/AutoCal_Foc-12000_Cam-Caml024_20161205a.xml
 
+![XML Calib graph](https://g.gravizo.com/g?
+  digraph G {
+    rankdir=LR;
+    euclidean[shape=box];
+    idealImage[shape=box];
+    distortedImage[shape=box];
+    euclidean -> projection -> idealImage;
+    idealImage -> distortion -> distortedImage;
+  }
+)
+
 3 referentials need to be created :
 - 1. the Euclidean external referential: the camera node is at the origin, and it is oriented with +Z in front of the camera (the optical axis), +X to the right of the camera and +Y to the bottom of the camera.
 - 2. ideal image frame: X and Y are the raster coordinates in pixels that would used to lookup the pixel values if the camera were an ideal pinhole camera, Z is the inverse depth (measured along the optical axis).
@@ -61,6 +72,20 @@ Example Calib file : data/AutoCal_Foc-12000_Cam-Caml024_20161205a.xml
 Creating A Sensor Group from a Blini
 =======
 Example Blini file : data/blinis_20161205.xml
+
+![XML Blini graph](https://g.gravizo.com/g?
+  digraph G {
+    base[shape=box];
+    023[shape=box];
+    024[shape=box];
+    025[shape=box];
+    026[shape=box];
+    base -> affine023 -> 023;
+    base -> affine024 -> 024;
+    base -> affine025 -> 025;
+    base -> affine026 -> 026;
+  }
+)
 
 N+1 referentials need to be created :
 - 1 is the base referential
