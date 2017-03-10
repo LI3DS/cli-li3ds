@@ -51,13 +51,23 @@ Example Calib file : data/AutoCal_Foc-12000_Cam-Caml024_20161205a.xml
 ![XML Calib graph](https://g.gravizo.com/g?
   digraph G {
     rankdir=LR;
-    euclidean[shape=box];
-    idealImage[shape=box];
-    distortedImage[shape=box];
+    compound=true;
+    subgraph cluster_sensor {
+      label = "Camera";
+      euclidean[shape=box];
+      idealImage[shape=box];
+      distortedImage[shape=box];
+      {rank=same; euclidean idealImage distortedImage}
+    subgraph cluster_transfotree {
+      label = "TransfoTree : AutoCal_Foc-12000_Cam-Caml024_20161205a.xml";
+      projection;
+      distortion;
+    }
     euclidean -> projection -> idealImage;
     idealImage -> distortion -> distortedImage;
-  }
-)
+    }
+  })
+
 
 3 referentials need to be created :
 - 1. the Euclidean external referential: the camera node is at the origin, and it is oriented with +Z in front of the camera (the optical axis), +X to the right of the camera and +Y to the bottom of the camera.
@@ -68,24 +78,36 @@ Example Calib file : data/AutoCal_Foc-12000_Cam-Caml024_20161205a.xml
 - 1->2. Projective Pinhole Transform : ppa is given by`PP`, focal by `F`
 - 2->3. Distorsion Transform : distorsion type and parameters are in `CalibDistortion` (see [micmac documentation](https://github.com/micmacIGN/Documentation/blob/master/DocMicMac.pdf))
 
+
 =======
 Creating A Sensor Group from a Blini
 =======
 Example Blini file : data/blinis_20161205.xml
 
-![XML Blini graph](https://g.gravizo.com/g?
+![XML Calib graph](https://g.gravizo.com/g?
   digraph G {
-    base[shape=box];
-    023[shape=box];
-    024[shape=box];
-    025[shape=box];
-    026[shape=box];
+    rankdir=LR;
+    compound=true;
+    subgraph cluster_sensor {
+      label = "Group";
+      base[shape=box];
+      023[shape=box];
+      024[shape=box];
+      025[shape=box];
+      026[shape=box];
+      subgraph cluster_transfotree {
+        label = "TransfoTree : blinis_20161205.xml";
+        affine023;
+        affine024;
+        affine025;
+        affine026;
+      }
+    }
     base -> affine023 -> 023;
     base -> affine024 -> 024;
     base -> affine025 -> 025;
     base -> affine026 -> 026;
-  }
-)
+  })
 
 N+1 referentials need to be created :
 - 1 is the base referential
@@ -94,4 +116,3 @@ N+1 referentials need to be created :
 N affine transforms need to be created, linking the base referencial to each of the camera position referentials :
 - The translation part is given by `ParamOrientSHC/Vecteur`
 - The linear part, which happen to be a rotation, is given by `ParamOrientSHC/Rot`
-
