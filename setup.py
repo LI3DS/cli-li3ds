@@ -6,7 +6,9 @@ from setuptools import setup, find_packages
 here = os.path.abspath(os.path.dirname(__file__))
 
 requirements = (
-    'requests==2.13.0'
+    'requests==2.13.0',
+    'cliff==2.4.0',
+    'requests==2.13.0',
 )
 
 dev_requirements = (
@@ -57,5 +59,13 @@ setup(
         'dev': dev_requirements,
         'prod': prod_requirements,
         'doc': doc_requirements
+    },
+    entry_points={
+        'console_scripts': [
+            'mm2li = micmac_li3ds.main:main'
+        ],
+        'mm2li': [
+            'add-sensor = micmac_li3ds.add_sensor:AddSensor'
+        ]
     }
 )
