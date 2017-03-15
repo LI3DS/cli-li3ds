@@ -64,11 +64,12 @@ class ImportBlinis(Command):
                 'specifications': {},
                 'type': 'group',
             }
-            sensor = api.create_sensor(sensor, api_url, api_key)
+            sensor = api.create_object('sensor', sensor, api_url, api_key)
             sensor_id = sensor['id']
             self.log.info('Sensor {:d} created.'.format(sensor_id))
         else:
-            sensor = api.get_sensor(sensor_id, api_url, api_key)
+            sensor = api.get_object_by_id(
+                    'sensor', sensor_id, api_url, api_key)
             if not sensor:
                 err = 'Sensor id {:d} not in db'.format(sensor_id)
                 raise RuntimeError(err)
@@ -84,8 +85,8 @@ class ImportBlinis(Command):
             'sensor': sensor_id,
             'srid': 0,
         }
-        base_referential = api.create_referential(
-                base_referential, api_url, api_key)
+        base_referential = api.create_object(
+                'referential', base_referential, api_url, api_key)
         base_referential_id = base_referential['id']
         self.log.info('Referential {:d} created.'.format(base_referential_id))
 
@@ -108,7 +109,8 @@ class ImportBlinis(Command):
                 'sensor': sensor_id,
                 'srid': 0,
             }
-            referential = api.create_referential(referential, api_url, api_key)
+            referential = api.create_object(
+                    'referential', referential, api_url, api_key)
             referential_id = referential['id']
             self.log.info('Referential {:d} created.'.format(referential_id))
 
@@ -125,7 +127,7 @@ class ImportBlinis(Command):
                 'validity_end': '9999-12-31T23:59:59+01',
                 'transfo_type': 2,
             }
-            transfo = api.create_transfo(transfo, api_url, api_key)
+            transfo = api.create_object('transfo', transfo, api_url, api_key)
             transfo_id = transfo['id']
             self.log.info('Transfo {:d} created.'.format(transfo_id))
 
@@ -140,7 +142,8 @@ class ImportBlinis(Command):
                 'sensor_connections': False,
                 'transfos': transfo_ids,
             }
-            transfotree = api.create_transfotree(transfotree, api_url, api_key)
+            transfotree = api.create_object(
+                    'transfotree', transfotree, api_url, api_key)
             transfotree_id = transfotree['id']
             self.log.info('Transfo tree {:d} created.'.format(transfotree_id))
 
