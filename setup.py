@@ -62,11 +62,10 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'mm2li = micmac_li3ds.main:main'
+            'mm2li = micmac_li3ds.main:main',
         ],
         'mm2li': [
-            'add-sensor = micmac_li3ds.add_sensor:AddSensor',
-            'import-blinis = micmac_li3ds.import_blinis:ImportBlinis'
+            'import-blinis = micmac_li3ds.import_blinis:ImportBlinis',
         ]
     }
 )
