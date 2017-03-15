@@ -4,7 +4,7 @@ This project is a set of python scripts to import [Micmac](https://github.com/mi
 
 ## Context
 
-The goal of this project is to provide a set of tool for fill li3ds datastore from micmac output files. [Micmac] (https://github.com/micmacIGN/micmac "Micmac's Homepage") is a free open source photogrammetry software tools.
+The goal of this project is to provide a set of tool for fill li3ds datastore from micmac output files. [Micmac](https://github.com/micmacIGN/micmac) is a free open source photogrammetry software tools.
 
 ## Prerequisite
 
