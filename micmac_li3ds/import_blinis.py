@@ -99,7 +99,7 @@ class ImportBlinis(Command):
             sensor = api.get_object_by_id(
                     'sensor', self.sensor_id, self.api_url, self.api_key)
             if not sensor:
-                err = 'Sensor id {:d} not in db'.format(sensor_id)
+                err = 'Sensor id {:d} not in db'.format(self.sensor_id)
                 raise RuntimeError(err)
             if sensor['type'] != 'group':
                 err = 'Sensor id {:d} is not of type "group"'.format(
