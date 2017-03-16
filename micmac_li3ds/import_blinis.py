@@ -140,11 +140,14 @@ class ImportBlinis(Command):
             # FIXME
             # validity_start, validity_end and transfo_type currently
             # hard-coded
+            matrix = self.create_transfo_matrix(param_orient_shc_node)
             description = 'affine transformation, imported from {}'.format(
                           self.blinis_file_basename)
             transfo = {
                 'description': description,
-                'parameters': {},
+                'parameters': {
+                    'mat4x3': matrix
+                },
                 'source': base_referential['id'],
                 'target': referential_id,
                 'tdate': datetime.datetime.now().isoformat(),
@@ -242,3 +245,34 @@ class ImportBlinis(Command):
     def parse_blinis(blinis_file):
         tree = xml.etree.ElementTree.parse(blinis_file)
         return tree.getroot()
+
+    @staticmethod
+    def create_transfo_matrix(param_orient_shc_node):
+        matrix = [[], [], []]
+        vecteur_node = param_orient_shc_node.find('Vecteur')
+        if vecteur_node is None:
+            err = 'Parsing blinis file failed, no Vecteur tag'
+            raise RuntimeError(err)
+        try:
+            tx, ty, tz = map(float, vecteur_node.text.split())
+        except ValueError:
+            err = 'Parsing blinis file failed, Vecteur tag ' \
+                  'includes non-parsable numbers'
+            raise RuntimeError(err)
+        rot_node = param_orient_shc_node.find('Rot')
+        if rot_node is None:
+            err = 'Parsing blinis file failed, no Rot tag'
+            raise RuntimeError(err)
+        for i, l in enumerate(('L1', 'L2', 'L3')):
+            l_node = rot_node.find(l)
+            if l_node is None:
+                err = 'Parsing blinis file failed, no {} tag'.format(l)
+                raise RuntimeError(err)
+            try:
+                v1, v2, v3 = map(float, l_node.text.split())
+            except ValueError:
+                err = 'Parsing blinis file failed, {} tag ' \
+                      'includes non-parsable numbers'.format(l)
+                raise RuntimeError(err)
+            matrix[i].extend((v1, v2, v3, tx))
+        return matrix
