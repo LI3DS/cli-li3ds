@@ -24,6 +24,8 @@ class ImportBlinis(Command):
         self.api_key = None
         self.sensor_id = None
         self.owner = None
+        self.validity_start = None
+        self.validity_end = None
         self.blinis_file = None
         self.blinis_file_basename = None
 
@@ -33,18 +35,26 @@ class ImportBlinis(Command):
         parser.add_argument(
             '--api-url', '-u',
             required=True,
-            help='the li3ds API URL')
+            help='the li3ds API URL (required)')
         parser.add_argument(
             '--api-key', '-k',
             required=True,
-            help='the li3ds API key')
+            help='the li3ds API key (required)')
         parser.add_argument(
             '--sensor-id', '-s',
             type=int,
-            help='the sensor group id')
+            help='the sensor group id (optional)')
         parser.add_argument(
             '--owner', '-o',
-            help='the data owner (default is unix username)')
+            help='the data owner (optional, default is unix username)')
+        parser.add_argument(
+            '--validity-start',
+            help='validity start date for transfos (optional, '
+                 'default is none)')
+        parser.add_argument(
+            '--validity-end',
+            help='validity end date for transfos (optional, '
+                 'default is none)')
         parser.add_argument(
             'blinis_file',
             help='the blinis file')
@@ -69,6 +79,8 @@ class ImportBlinis(Command):
         self.blinis_file = parsed_args.blinis_file
         self.blinis_file_basename = os.path.basename(self.blinis_file)
         self.owner = parsed_args.owner or getpass.getuser()
+        self.validity_start = parsed_args.validity_start
+        self.validity_end = parsed_args.validity_end
 
         root = self.parse_blinis(self.blinis_file)
         if root.tag != 'StructBlockCam':
@@ -153,6 +165,10 @@ class ImportBlinis(Command):
                 'tdate': datetime.datetime.now().isoformat(),
                 'transfo_type': 1,
             }
+            if self.validity_start:
+                transfo['validity_start'] = self.validity_start
+            if self.validity_end:
+                transfo['validity_end'] = self.validity_end
             transfo = api.create_object(
                     'transfo', transfo, self.api_url, self.api_key)
             transfo_id = transfo['id']
