@@ -1,3 +1,4 @@
+import os
 import datetime
 import logging
 import xml.etree.ElementTree
@@ -44,8 +45,10 @@ class ImportBlinis(Command):
         sensor_id = parsed_args.sensor_id
         api_url = self.api_url = parsed_args.api_url
         api_key = self.api_key = parsed_args.api_key
+        blinis_file = self.blinis_file = parsed_args.blinis_file
+        self.blinis_file_basename = os.path.basename(blinis_file)
 
-        root = self.parse_blinis(parsed_args.blinis_file)
+        root = self.parse_blinis(blinis_file)
         if root.tag != 'StructBlockCam':
             err = 'Parsing blinis file failed: root is not StructBlockCam'
             raise RuntimeError(err)
@@ -91,8 +94,12 @@ class ImportBlinis(Command):
             referential_name = id_grp_node.text
 
             if referential_name not in referentials_map:
+                # create referential
+                description = 'referential for sensor group {:d}, ' \
+                              'imported from {}'.format(
+                                  sensor_id, self.blinis_file_basename)
                 referential = {
-                    'description': '',
+                    'description': description,
                     'name': referential_name,
                     'root': True,
                     'sensor': sensor_id,
@@ -110,8 +117,10 @@ class ImportBlinis(Command):
             # FIXME
             # validity_start, validity_end and transfo_type currently
             # hard-coded
+            description = 'affine transformation, imported from {}'.format(
+                          self.blinis_file_basename)
             transfo = {
-                'description': '',
+                'description': description,
                 'parameters': {},
                 'source': base_referential['id'],
                 'target': referential_id,
@@ -150,9 +159,11 @@ class ImportBlinis(Command):
         assert(self.api_key)
 
         # create the sensor
+        description = 'sensor group, imported from {}'.format(
+                self.blinis_file_basename)
         sensor = {
             'brand': '',
-            'description': '',
+            'description': description,
             'model': sensor_name,
             'serial_number': '',
             'short_name': '',
@@ -165,8 +176,11 @@ class ImportBlinis(Command):
         self.log.info('Sensor {:d} created.'.format(sensor_id))
 
         # create the base referential
+        description = 'base referential for sensor group {:d}, ' \
+                      'imported from {}'.format(
+                          sensor_id, self.blinis_file_basename)
         base_referential = {
-            'description': '',
+            'description': description,
             'name': sensor_name,
             'root': True,
             'sensor': sensor_id,
@@ -182,8 +196,12 @@ class ImportBlinis(Command):
         for param_orient_shc_node in param_orient_shc_nodes:
             id_grp_node = param_orient_shc_node.find('IdGrp')
 
+            # create referential
+            description = 'referential for sensor group {:d}, ' \
+                          'imported from {}'.format(
+                              sensor_id, self.blinis_file_basename)
             referential = {
-                'description': '',
+                'description': description,
                 'name': id_grp_node.text,
                 'root': False,
                 'sensor': sensor_id,
