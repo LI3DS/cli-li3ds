@@ -41,6 +41,17 @@ class ImportBlinis(Command):
         return parser
 
     def take_action(self, parsed_args):
+        """
+        Create or update a sensor group.
+
+        If a sensor id is not provided on the command line then a sensor group
+        is created, together with its base referential and other referentials
+        based on the content of the blinis file. Then transfos grouped in
+        a transfo tree are created.
+
+        If a sensor id is provided on the command line then new transfos
+        grouped in a transfo tree are created for the sensor group.
+        """
 
         sensor_id = parsed_args.sensor_id
         api_url = self.api_url = parsed_args.api_url
