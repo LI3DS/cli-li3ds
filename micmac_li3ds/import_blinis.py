@@ -223,7 +223,7 @@ class ImportBlinis(Command):
                           sensor_id, self.blinis_file_basename)
         base_referential = {
             'description': description,
-            'name': sensor_name,
+            'name': 'base',
             'root': True,
             'sensor': sensor_id,
             'srid': 0,
