@@ -116,6 +116,7 @@ class ImportBlinis(Command):
             if sensor['type'] != 'group':
                 err = 'Sensor id {:d} is not of type "group"'.format(
                       self.sensor_id)
+                raise RuntimeError(err)
             base_referential, referentials = api.get_sensor_referentials(
                     self.sensor_id, self.api_url, self.api_key)
 
