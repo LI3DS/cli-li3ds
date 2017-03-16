@@ -181,10 +181,8 @@ class ImportBlinis(Command):
             # FIXME
             # transfo_type currently hard-coded
             matrix = self.create_transfo_matrix(param_orient_shc_node)
-            description = 'affine transformation, imported from {}'.format(
-                          self.blinis_file_basename)
             transfo = {
-                'description': description,
+                'description': 'Affine_{}'.format(referential_name),
                 'parameters': {
                     'mat4x3': matrix
                 },
