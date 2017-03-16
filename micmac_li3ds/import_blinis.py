@@ -16,6 +16,9 @@ class ImportBlinis(Command):
 
     log = logging.getLogger(__name__)
 
+    api_url = None
+    api_key = None
+
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
         parser = super().get_parser(prog_name)
@@ -39,8 +42,8 @@ class ImportBlinis(Command):
     def take_action(self, parsed_args):
 
         sensor_id = parsed_args.sensor_id
-        api_url = parsed_args.api_url
-        api_key = parsed_args.api_key
+        api_url = self.api_url = parsed_args.api_url
+        api_key = self.api_key = parsed_args.api_key
 
         root = self.parse_blinis(parsed_args.blinis_file)
         if root.tag != 'StructBlockCam':
@@ -52,21 +55,21 @@ class ImportBlinis(Command):
             err = 'Parsing blinis file failed: no tag KeyIm2TimeCam'
             raise RuntimeError(err)
 
-        # create a sensor group if sensor_id is not specified on the
-        # command line arguments
+        liaisons_shc_node = root.find('LiaisonsSHC')
+        if key_im2_time_cam_node is None:
+            err = 'Parsing blinis file failed: no tag LiaisonsSHC'
+            raise RuntimeError(err)
+
+        param_orient_shc_nodes = liaisons_shc_node.findall('ParamOrientSHC')
+        if not param_orient_shc_nodes:
+            err = 'Parsing blinis file failed: no ParamOrientSHC tags'
+            raise RuntimeError(err)
+
+        # create a sensor group if sensor_id not specified on command line
         if sensor_id is None:
-            sensor = {
-                'brand': '',
-                'description': '',
-                'model': key_im2_time_cam_node.text,
-                'serial_number': '',
-                'short_name': '',
-                'specifications': {},
-                'type': 'group',
-            }
-            sensor = api.create_object('sensor', sensor, api_url, api_key)
-            sensor_id = sensor['id']
-            self.log.info('Sensor {:d} created.'.format(sensor_id))
+            sensor_id, base_referential, referentials = \
+                self.create_sensor_group(
+                    key_im2_time_cam_node.text, param_orient_shc_nodes)
         else:
             sensor = api.get_object_by_id(
                     'sensor', sensor_id, api_url, api_key)
@@ -75,44 +78,34 @@ class ImportBlinis(Command):
                 raise RuntimeError(err)
             if sensor['type'] != 'group':
                 err = 'Sensor id {:d} is not of type "group"'.format(sensor_id)
+            base_referential, referentials = api.get_sensor_referentials(
+                    sensor_id, api_url, api_key)
 
-        # create the sensor group referential
-        # FIXME description?
-        base_referential = {
-            'description': '',
-            'name': key_im2_time_cam_node.text,
-            'root': True,
-            'sensor': sensor_id,
-            'srid': 0,
-        }
-        base_referential = api.create_object(
-                'referential', base_referential, api_url, api_key)
-        base_referential_id = base_referential['id']
-        self.log.info('Referential {:d} created.'.format(base_referential_id))
-
-        liaisons_shc_node = root.find('LiaisonsSHC')
-        if key_im2_time_cam_node is None:
-            err = 'Parsing blinis file failed: no tag LiaisonsSHC'
-            raise RuntimeError(err)
-
-        param_orient_shc_nodes = liaisons_shc_node.findall('ParamOrientSHC')
+        # referential names to ids map
+        referentials_map = {r['name']: r['id'] for r in referentials}
 
         transfo_ids = []
         for param_orient_shc_node in param_orient_shc_nodes:
-            id_grp_node = param_orient_shc_node.find('IdGrp')
 
-            # FIXME description?
-            referential = {
-                'description': '',
-                'name': id_grp_node.text,
-                'root': True,
-                'sensor': sensor_id,
-                'srid': 0,
-            }
-            referential = api.create_object(
-                    'referential', referential, api_url, api_key)
-            referential_id = referential['id']
-            self.log.info('Referential {:d} created.'.format(referential_id))
+            id_grp_node = param_orient_shc_node.find('IdGrp')
+            referential_name = id_grp_node.text
+
+            if referential_name not in referentials_map:
+                referential = {
+                    'description': '',
+                    'name': referential_name,
+                    'root': True,
+                    'sensor': sensor_id,
+                    'srid': 0,
+                }
+                referential = api.create_object(
+                        'referential', referential, api_url, api_key)
+                referential_id = referential['id']
+                self.log.info('Referential {:d} created.'.format(
+                    referential_id))
+                referentials_map[referential_name] = referential['id']
+
+            referential_id = referentials_map[referential_name]
 
             # FIXME
             # validity_start, validity_end and transfo_type currently
@@ -120,12 +113,10 @@ class ImportBlinis(Command):
             transfo = {
                 'description': '',
                 'parameters': {},
-                'source': base_referential_id,
+                'source': base_referential['id'],
                 'target': referential_id,
                 'tdate': datetime.datetime.now().isoformat(),
-                'validity_start': '0001-01-01T00:00:00+00',
-                'validity_end': '9999-12-31T23:59:59+01',
-                'transfo_type': 2,
+                'transfo_type': 1,
             }
             transfo = api.create_object('transfo', transfo, api_url, api_key)
             transfo_id = transfo['id']
@@ -148,6 +139,63 @@ class ImportBlinis(Command):
             self.log.info('Transfo tree {:d} created.'.format(transfotree_id))
 
         self.log.info('Success!')
+
+    def create_sensor_group(self, sensor_name, param_orient_shc_nodes):
+        """
+        Create a sensor group, its base referentials and its N non-base
+        referentials. One non-base referential per IdGrp node.
+        """
+
+        assert(self.api_url)
+        assert(self.api_key)
+
+        # create the sensor
+        sensor = {
+            'brand': '',
+            'description': '',
+            'model': sensor_name,
+            'serial_number': '',
+            'short_name': '',
+            'specifications': {},
+            'type': 'group',
+        }
+        sensor = api.create_object(
+                'sensor', sensor, self.api_url, self.api_key)
+        sensor_id = sensor['id']
+        self.log.info('Sensor {:d} created.'.format(sensor_id))
+
+        # create the base referential
+        base_referential = {
+            'description': '',
+            'name': sensor_name,
+            'root': True,
+            'sensor': sensor_id,
+            'srid': 0,
+        }
+        base_referential = api.create_object(
+                'referential', base_referential, self.api_url, self.api_key)
+        base_referential_id = base_referential['id']
+        self.log.info('Referential {:d} created.'.format(base_referential_id))
+
+        referentials = []
+
+        for param_orient_shc_node in param_orient_shc_nodes:
+            id_grp_node = param_orient_shc_node.find('IdGrp')
+
+            referential = {
+                'description': '',
+                'name': id_grp_node.text,
+                'root': False,
+                'sensor': sensor_id,
+                'srid': 0,
+            }
+            referential = api.create_object(
+                    'referential', referential, self.api_url, self.api_key)
+            referential_id = referential['id']
+            self.log.info('Referential {:d} created.'.format(referential_id))
+            referentials.append(referential)
+
+        return sensor_id, base_referential, referentials
 
     @staticmethod
     def parse_blinis(blinis_file):
