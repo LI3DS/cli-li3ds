@@ -23,6 +23,7 @@ class ImportBlinis(Command):
         self.api_url = None
         self.api_key = None
         self.sensor_id = None
+        self.sensor_name = None
         self.owner = None
         self.validity_start = None
         self.validity_end = None
@@ -44,6 +45,9 @@ class ImportBlinis(Command):
             '--sensor-id', '-s',
             type=int,
             help='the sensor group id (optional)')
+        parser.add_argument(
+            '--sensor-name', '-n',
+            help='the sensor group name (optional)')
         parser.add_argument(
             '--owner', '-o',
             help='the data owner (optional, default is unix username)')
@@ -76,6 +80,7 @@ class ImportBlinis(Command):
         self.api_url = parsed_args.api_url
         self.api_key = parsed_args.api_key
         self.sensor_id = parsed_args.sensor_id
+        self.sensor_name = parsed_args.sensor_name
         self.blinis_file = parsed_args.blinis_file
         self.blinis_file_basename = os.path.basename(self.blinis_file)
         self.owner = parsed_args.owner or getpass.getuser()
@@ -102,12 +107,15 @@ class ImportBlinis(Command):
             err = 'Parsing blinis file failed: no ParamOrientSHC tags'
             raise RuntimeError(err)
 
-        # create a sensor group if sensor_id not specified on command line
-        if self.sensor_id is None:
+        if not self.sensor_id and not self.sensor_name:
+            # neither sensor_id nor sensor_name specified on the command
+            # line, so create a sensor group
             sensor_id, base_referential, referentials = \
                 self.create_sensor_group(
                     key_im2_time_cam_node.text, param_orient_shc_nodes)
-        else:
+        elif self.sensor_id:
+            # look up sensor whose id is sensor_id, and raise an error
+            # if there's no sensor with that id
             sensor = api.get_object_by_id(
                     'sensor', self.sensor_id, self.api_url, self.api_key)
             if not sensor:
@@ -119,6 +127,26 @@ class ImportBlinis(Command):
                 raise RuntimeError(err)
             base_referential, referentials = api.get_sensor_referentials(
                     self.sensor_id, self.api_url, self.api_key)
+        else:
+            # we have a sensor name, look up sensor with this name, and
+            # create a sensor with that name if there's no such sensor
+            # in the database
+            assert(self.sensor_name)
+            sensor = api.get_object_by_name(
+                    'sensor', self.sensor_name, self.api_url, self.api_key)
+            if sensor:
+                if sensor['type'] != 'group':
+                    err = 'Sensor id {:d} is not of type "group"'.format(
+                          sensor['id'])
+                    raise RuntimeError(err)
+                self.log.info('Sensor {} found in database.'
+                              .format(self.sensor_name))
+                base_referential, referentials = api.get_sensor_referentials(
+                    sensor['id'], self.api_url, self.api_key)
+            else:
+                sensor_id, base_referential, referentials = \
+                    self.create_sensor_group(
+                        self.sensor_name, param_orient_shc_nodes)
 
         # referential names to ids map
         referentials_map = {r['name']: r['id'] for r in referentials}
@@ -206,9 +234,9 @@ class ImportBlinis(Command):
         sensor = {
             'brand': '',
             'description': description,
-            'model': sensor_name,
+            'model': '',
             'serial_number': '',
-            'short_name': '',
+            'short_name': sensor_name,
             'specifications': {},
             'type': 'group',
         }

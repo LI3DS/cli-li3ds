@@ -27,6 +27,22 @@ def get_object_by_id(typ, obj_id, api_url, api_key):
     raise RuntimeError(err)
 
 
+def get_object_by_name(typ, obj_name, api_url, api_key):
+    url = api_url.rstrip('/') + '/{}s/'.format(typ)
+    headers = {'X-API-KEY': api_key, 'Accept': 'application/json'}
+    resp = requests.get(url, headers=headers)
+    if resp.status_code == 200:
+        objs = resp.json()
+        try:
+            obj = next(o for o in objs if o['short_name'] == obj_name)
+        except StopIteration:
+            return None
+        return obj
+    err = 'Getting object failed (status code: {})'.format(
+          resp.status_code)
+    raise RuntimeError(err)
+
+
 def get_objects(typ, api_url, api_key):
     url = api_url.rstrip('/') + '/{}s/'.format(typ)
     headers = {'X-API-KEY': api_key, 'Accept': 'application/json'}
