@@ -151,8 +151,7 @@ class ImportBlinis(Command):
             referential_id = referentials_map[referential_name]
 
             # FIXME
-            # validity_start, validity_end and transfo_type currently
-            # hard-coded
+            # transfo_type currently hard-coded
             matrix = self.create_transfo_matrix(param_orient_shc_node)
             description = 'affine transformation, imported from {}'.format(
                           self.blinis_file_basename)
