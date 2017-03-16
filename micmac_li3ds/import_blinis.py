@@ -54,11 +54,11 @@ class ImportBlinis(Command):
         parser.add_argument(
             '--validity-start',
             help='validity start date for transfos (optional, '
-                 'default is none)')
+                 'default is valid since always)')
         parser.add_argument(
             '--validity-end',
             help='validity end date for transfos (optional, '
-                 'default is none)')
+                 'default is valid until forever)')
         parser.add_argument(
             'blinis_file',
             help='the blinis file')
