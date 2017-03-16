@@ -1,5 +1,6 @@
 import os
 import datetime
+import getpass
 import logging
 import xml.etree.ElementTree
 
@@ -17,8 +18,14 @@ class ImportBlinis(Command):
 
     log = logging.getLogger(__name__)
 
-    api_url = None
-    api_key = None
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.api_url = None
+        self.api_key = None
+        self.sensor_id = None
+        self.owner = None
+        self.blinis_file = None
+        self.blinis_file_basename = None
 
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
@@ -35,6 +42,9 @@ class ImportBlinis(Command):
             '--sensor-id', '-s',
             type=int,
             help='the sensor group id')
+        parser.add_argument(
+            '--owner', '-o',
+            help='the data owner (default is unix username)')
         parser.add_argument(
             'blinis_file',
             help='the blinis file')
@@ -53,13 +63,14 @@ class ImportBlinis(Command):
         grouped in a transfo tree are created for the sensor group.
         """
 
-        sensor_id = parsed_args.sensor_id
-        api_url = self.api_url = parsed_args.api_url
-        api_key = self.api_key = parsed_args.api_key
-        blinis_file = self.blinis_file = parsed_args.blinis_file
-        self.blinis_file_basename = os.path.basename(blinis_file)
+        self.api_url = parsed_args.api_url
+        self.api_key = parsed_args.api_key
+        self.sensor_id = parsed_args.sensor_id
+        self.blinis_file = parsed_args.blinis_file
+        self.blinis_file_basename = os.path.basename(self.blinis_file)
+        self.owner = parsed_args.owner or getpass.getuser()
 
-        root = self.parse_blinis(blinis_file)
+        root = self.parse_blinis(self.blinis_file)
         if root.tag != 'StructBlockCam':
             err = 'Parsing blinis file failed: root is not StructBlockCam'
             raise RuntimeError(err)
@@ -80,20 +91,21 @@ class ImportBlinis(Command):
             raise RuntimeError(err)
 
         # create a sensor group if sensor_id not specified on command line
-        if sensor_id is None:
+        if self.sensor_id is None:
             sensor_id, base_referential, referentials = \
                 self.create_sensor_group(
                     key_im2_time_cam_node.text, param_orient_shc_nodes)
         else:
             sensor = api.get_object_by_id(
-                    'sensor', sensor_id, api_url, api_key)
+                    'sensor', self.sensor_id, self.api_url, self.api_key)
             if not sensor:
                 err = 'Sensor id {:d} not in db'.format(sensor_id)
                 raise RuntimeError(err)
             if sensor['type'] != 'group':
-                err = 'Sensor id {:d} is not of type "group"'.format(sensor_id)
+                err = 'Sensor id {:d} is not of type "group"'.format(
+                      self.sensor_id)
             base_referential, referentials = api.get_sensor_referentials(
-                    sensor_id, api_url, api_key)
+                    self.sensor_id, self.api_url, self.api_key)
 
         # referential names to ids map
         referentials_map = {r['name']: r['id'] for r in referentials}
@@ -117,7 +129,7 @@ class ImportBlinis(Command):
                     'srid': 0,
                 }
                 referential = api.create_object(
-                        'referential', referential, api_url, api_key)
+                        'referential', referential, self.api_url, self.api_key)
                 referential_id = referential['id']
                 self.log.info('Referential {:d} created.'.format(
                     referential_id))
@@ -138,23 +150,23 @@ class ImportBlinis(Command):
                 'tdate': datetime.datetime.now().isoformat(),
                 'transfo_type': 1,
             }
-            transfo = api.create_object('transfo', transfo, api_url, api_key)
+            transfo = api.create_object(
+                    'transfo', transfo, self.api_url, self.api_key)
             transfo_id = transfo['id']
             self.log.info('Transfo {:d} created.'.format(transfo_id))
 
             transfo_ids.append(transfo_id)
 
         if len(transfo_ids):
-            # FIXME owner?
             transfotree = {
                 'isdefault': True,
                 'name': key_im2_time_cam_node.text,
-                'owner': '',
+                'owner': self.owner,
                 'sensor_connections': False,
                 'transfos': transfo_ids,
             }
             transfotree = api.create_object(
-                    'transfotree', transfotree, api_url, api_key)
+                    'transfotree', transfotree, self.api_url, self.api_key)
             transfotree_id = transfotree['id']
             self.log.info('Transfo tree {:d} created.'.format(transfotree_id))
 
