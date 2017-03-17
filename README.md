@@ -1,17 +1,15 @@
 # micmac_li3ds
 
 This project is a set of python scripts to import [Micmac](https://github.com/micmacIGN/micmac)-produced datasets into the  [li3ds](https://github.com/li3ds) datastore, using its [REST api](https://github.com/li3ds/api-li3ds).
+- [Micmac](https://github.com/micmacIGN/micmac) is a free open source photogrammetry software tools.
+- [li3ds](https://github.com/li3ds) is a free open source datastore, based on postgres, for large input 3D data acquisitions :  optical images, lidar and photogrametric pointclouds, photogrammetry-estimated or directly georeferenced (GNSS) trajectories...
 
-## Context
+## Sample Dataset
 
-The goal of this project is to provide a set of tool for fill li3ds datastore from micmac output files. [Micmac](https://github.com/micmacIGN/micmac) is a free open source photogrammetry software tools.
-
-## Prerequisite
-
-In the directory of this repository there are some example files from micmac : 
-- AutoCal_Foc-12000_Cam-Caml024_20161205a.xml
-- blinis_20161205.xml
-- blocA_ori-export_023.txt (this file + timestamp from image will serve for generating a sbet file)
+In the [data](data) directory, some sample files from micmac may be found, such as : 
+- [AutoCal_&ast;.xml](data/AutoCal_Foc-12000_Cam-Caml024_20161205a.xml) : intrinsic camera calibrations
+- [blinis_&ast;.xml](data/blinis_20161205.xml) : extrinsic camera-rig calibrations
+- [&ast;_ori-export_&ast;.txt](data/blocA_ori-export_023.txt) : SFM-estimated camera poses (using micmac/apero). This file should be augmented with image timestamps to generate a trajectory (e.g. as a sbet file)
 
 
 In addition of these files, a json file could be produced for the metadata of the mission. This json file will contain the references to other micmac files and provide the missing parameters in its json structure.
