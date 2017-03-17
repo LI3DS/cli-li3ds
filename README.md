@@ -25,18 +25,16 @@ TODO: example
 If not done already, it's necessary to create a sensor group that will regroup all the earth-fixed referentials (together with there postgis srid code).
 
 ```
-[
-    {
-        "brand": "",
-        "description": "Fixed Earth group of referentials, such as EPSG SRIDs",
-        -- "id": 26,
-        "model": "",
-        "serial_number": "",
-        "short_name": "Earth",
-        "specifications": {},
-        "type": "group"
-    }
-]
+{
+    -- "id" : [server generated],
+    "short_name": "Earth",
+    "description": "Fixed Earth group of referentials, such as EPSG SRIDs",
+    "type": "group"
+    "brand": "",
+    "model": "",
+    "serial_number": "",
+    "specifications": {},
+}
 ```
 
 ## Camera Calibration
@@ -75,9 +73,40 @@ Example Blini XML file : data/blinis_20161205.xml
 
 ![XML Calib graph](https://g.gravizo.com/g?digraph%20G%20{rankdir=LR;compound=true;subgraph%20cluster_sensor{label="Group";base[shape=box,color=red];023[shape=box];024[shape=box];025[shape=box];026[shape=box];}})
 
+1 sensor group needs to be created :
+```
+{
+    "short_name": "{cmdline.sensor_name else <StructBlockCam/KeyIm2TimeCam>}",
+    "description": "sensor group, imported from {blinis_file_basename}",
+    "type": "group"
+    "brand": "",
+    "model": "",
+    "serial_number": "",
+    "specifications": {},
+}
+```
+
 N+1 referentials need to be created :
-- 1 is the base referential (root=true)
-- 1 for each of the N XML nodes `ParamOrientSHC` should create a referential (root=false), named using `ParamOrientSHC/IdGrp`
+- 1 is the base referential
+```
+{
+    "name": "base",
+    "description": "referential for sensor group {sensor.id}, imported from {blinis_file_basename}",
+    "root": True,
+    "sensor": {sensor.id},
+    "srid": 0,
+}
+```
+- 1 for each of the N XML nodes `ParamOrientSHC` should create a referential , named using `ParamOrientSHC/IdGrp`
+```
+{
+    "name": "{<StructBlockCam/LiaisonsSHC/ParamOrientSHC/IdGrp>}",
+    "description": "referential for sensor group {sensor.id}, imported from {blinis_file_basename}",
+    "root": False,
+    "sensor": {sensor.id},
+    "srid": 0,
+}
+```
 
 ### Creating the Transfo-Tree of a Sensor Group Calibration
 (given an pre-existing sensor group created by a similar blini file)
@@ -87,3 +116,34 @@ N+1 referentials need to be created :
 N `affine` transforms need to be created, linking the base referential to each of the camera position referentials through a 4x3 matrix :
 - The translation part is given by `ParamOrientSHC/Vecteur`
 - The linear part, which happen to be a rotation, is given by `ParamOrientSHC/Rot`
+
+```
+{
+    "description": "Affine_{<StructBlockCam/LiaisonsSHC/ParamOrientSHC/IdGrp>}",
+    "parameters": {
+        "mat4x3": [ -- comma-separated values (FIXME: ordering of values)
+            {<StructBlockCam/LiaisonsSHC/ParamOrientSHC/Rot/L1>}
+            {<StructBlockCam/LiaisonsSHC/ParamOrientSHC/Rot/L2>}
+            {<StructBlockCam/LiaisonsSHC/ParamOrientSHC/Rot/L3>}
+            {<StructBlockCam/LiaisonsSHC/ParamOrientSHC/Vecteur>}
+        ]
+    },
+    "source": {base_referential.id},
+    "target": {IdGrp_referential.id},
+    "transfo_type": {transfo_type["affine"].id},
+    "tdate": {cmdline.tdate else undefined},
+    "validity_start": {cmdline.validity_start else undefined},
+    "validity_end": {cmdline.validity_end else undefined}
+}
+```
+
+A transfo tree may now be created to regroup all these transforms :
+```
+{
+    "name": "{cmdline.transfotree_name else {blinis_file_basename}}",
+    "isdefault": True,
+    "owner": "{cmdline.owner else {unix username}}",
+    "sensor_connections": False,
+    "transfos": {array of the N newly-created transfo ids}
+}
+```
