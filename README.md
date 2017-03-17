@@ -54,7 +54,7 @@ Example Calib XML file : data/AutoCal_Foc-12000_Cam-Caml024_20161205a.xml
     "model": "{cmdline.model}",
     "serial_number": "{cmdline.serial_number}",
     "specifications": {
-      "size" : [{<ExportAPERO/CalibrationInternConique/SzImS>}],
+      "size" : [{<ExportAPERO/CalibrationInternConique/SzIm>}],
       {cmdline.specifications}
     }
 }
@@ -142,7 +142,7 @@ A transfo tree may now be created to regroup these two transforms :
 ```
 {
     "name": "{cmdline.transfotree_name else {calib_file_basename}}", -- maybe only the relevant substring of {calib_file_basename}
-    "isdefault": True,
+    "isdefault": {cmdline.isdefault else True},
     "owner": "{cmdline.owner else {unix username}}",
     "sensor_connections": False,
     "transfos": [{projection.id}, {distortion.id}]
@@ -224,7 +224,7 @@ A transfo tree may now be created to regroup all these transforms :
 ```
 {
     "name": "{cmdline.transfotree_name else {blinis_file_basename}}",
-    "isdefault": True,
+    "isdefault": {cmdline.isdefault else True},
     "owner": "{cmdline.owner else {unix username}}",
     "sensor_connections": False,
     "transfos": {array of the N newly-created transfo ids}
