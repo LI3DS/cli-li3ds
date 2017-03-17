@@ -7,9 +7,9 @@ This project is a set of python scripts to import [Micmac](https://github.com/mi
 ## Sample Dataset
 
 In the [data](data) directory, some sample files from micmac may be found, such as : 
-- [AutoCal_&ast;.xml](data/AutoCal_Foc-12000_Cam-Caml024_20161205a.xml) : intrinsic camera calibrations
-- [blinis_&ast;.xml](data/blinis_20161205.xml) : extrinsic camera-rig calibrations
-- [&ast;_ori-export_&ast;.txt](data/blocA_ori-export_023.txt) : SFM-estimated camera poses (using micmac/apero). This file should be augmented with image timestamps to generate a trajectory (e.g. as a sbet file)
+- [AutoCal_{?}.xml](data/AutoCal_Foc-12000_Cam-Caml024_20161205a.xml) : intrinsic camera calibrations
+- [blinis_{YYYYMMDD?}.xml](data/blinis_20161205.xml) : extrinsic camera-rig calibrations
+- [{session.name?}_ori-export_{referential.name?}.txt](data/blocA_ori-export_023.txt) : SFM-estimated camera poses (using micmac/apero). This file should be augmented with image timestamps to generate a trajectory (e.g. as a sbet file)
 
 
 In addition of these files, a json file could be produced for the metadata of the mission. This json file will contain the references to other micmac files and provide the missing parameters in its json structure.
@@ -113,7 +113,6 @@ F, 0, PP[0], 0
     "parameters": {
         "focal": <ExportAPERO/CalibrationInternConique/F>
         "ppa"  : [<ExportAPERO/CalibrationInternConique/PP>]
-        ]
     },
     "source": {euclidean.id},
     "target": {idealImage.id},
