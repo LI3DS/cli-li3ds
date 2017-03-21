@@ -34,7 +34,7 @@ def get_object_by_name(typ, obj_name, api_url, api_key):
     if resp.status_code == 200:
         objs = resp.json()
         try:
-            obj = next(o for o in objs if o['short_name'] == obj_name)
+            obj = next(o for o in objs if o['name'] == obj_name)
         except StopIteration:
             return None
         return obj
