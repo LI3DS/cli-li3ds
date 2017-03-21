@@ -25,6 +25,7 @@ class ImportBlinis(Command):
         self.sensor_id = None
         self.sensor_name = None
         self.owner = None
+        self.tdate = None
         self.validity_start = None
         self.validity_end = None
         self.blinis_file = None
@@ -51,6 +52,10 @@ class ImportBlinis(Command):
         parser.add_argument(
             '--owner', '-o',
             help='the data owner (optional, default is unix username)')
+        parser.add_argument(
+            '--calibration-date', '-d',
+            help='the calibration date (optional, default is the current '
+                 'local date and time')
         parser.add_argument(
             '--validity-start',
             help='validity start date for transfos (optional, '
@@ -84,6 +89,7 @@ class ImportBlinis(Command):
         self.blinis_file = parsed_args.blinis_file
         self.blinis_file_basename = os.path.basename(self.blinis_file)
         self.owner = parsed_args.owner or getpass.getuser()
+        self.tdate = parsed_args.calibration_date
         self.validity_start = parsed_args.validity_start
         self.validity_end = parsed_args.validity_end
 
@@ -188,7 +194,7 @@ class ImportBlinis(Command):
                 },
                 'source': base_referential['id'],
                 'target': referential_id,
-                'tdate': datetime.datetime.now().isoformat(),
+                'tdate': self.tdate or datetime.datetime.now().isoformat(),
                 'transfo_type': 1,
             }
             if self.validity_start:
