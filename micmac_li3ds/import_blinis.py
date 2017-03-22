@@ -180,8 +180,13 @@ class ImportBlinis(Command):
 
             referential_id = referentials_map[referential_name]
 
-            # FIXME
-            # transfo_type currently hard-coded
+            # retrieve the "affine" transfo type
+            transfo_type = self.api.get_object_by_name(
+                'transfos/type', 'affine')
+            if not transfo_type:
+                err = 'No transfo type "affine" available.'
+                raise RuntimeError(err)
+
             matrix = self.create_transfo_matrix(param_orient_shc_node)
             description = 'affine transformation, imported from {}'.format(
                     self.blinis_file_basename)
@@ -194,7 +199,7 @@ class ImportBlinis(Command):
                 'source': base_referential['id'],
                 'target': referential_id,
                 'tdate': self.tdate or datetime.datetime.now().isoformat(),
-                'transfo_type': 1,
+                'transfo_type': transfo_type['id'],
             }
             if self.validity_start:
                 transfo['validity_start'] = self.validity_start
