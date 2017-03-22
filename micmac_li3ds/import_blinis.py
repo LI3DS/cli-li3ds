@@ -93,22 +93,22 @@ class ImportBlinis(Command):
 
         root = self.parse_blinis(self.blinis_file)
         if root.tag != 'StructBlockCam':
-            err = 'Parsing blinis file failed: root is not StructBlockCam'
+            err = 'Error: root node is not StructBlockCam in blinis file'
             raise RuntimeError(err)
 
         key_im2_time_cam_node = root.find('KeyIm2TimeCam')
         if key_im2_time_cam_node is None:
-            err = 'Parsing blinis file failed: no tag KeyIm2TimeCam'
+            err = 'Error: no tag KeyIm2TimeCam in blinis file'
             raise RuntimeError(err)
 
         liaisons_shc_node = root.find('LiaisonsSHC')
         if key_im2_time_cam_node is None:
-            err = 'Parsing blinis file failed: no tag LiaisonsSHC'
+            err = 'Error: no tag LiaisonsSHC in blinis file'
             raise RuntimeError(err)
 
         param_orient_shc_nodes = liaisons_shc_node.findall('ParamOrientSHC')
         if not param_orient_shc_nodes:
-            err = 'Parsing blinis file failed: no ParamOrientSHC tags'
+            err = 'Error: no ParamOrientSHC tags in blinis file'
             raise RuntimeError(err)
 
         if not self.sensor_id and not self.sensor_name:
@@ -122,10 +122,11 @@ class ImportBlinis(Command):
             # if there's no sensor with that id
             sensor = self.api.get_object_by_id('sensor', self.sensor_id)
             if not sensor:
-                err = 'Sensor id {:d} not in db'.format(self.sensor_id)
+                err = 'Error: sensor with id {:d} not in db'.format(
+                        self.sensor_id)
                 raise RuntimeError(err)
             if sensor['type'] != 'group':
-                err = 'Sensor id {:d} is not of type "group"'.format(
+                err = 'Error: sensor with id {:d} not of type "group"'.format(
                       self.sensor_id)
                 raise RuntimeError(err)
             base_referential, referentials = \
@@ -138,10 +139,10 @@ class ImportBlinis(Command):
             sensor = self.api.get_object_by_name('sensor', self.sensor_name)
             if sensor:
                 if sensor['type'] != 'group':
-                    err = 'Sensor id {:d} is not of type "group"'.format(
-                          sensor['id'])
+                    err = 'Error: sensor with id {:d} not of type ' \
+                          '"group"'.format(sensor['id'])
                     raise RuntimeError(err)
-                self.log.info('Sensor {} found in database.'
+                self.log.info('Sensor "{}" found in database.'
                               .format(self.sensor_name))
                 base_referential, referentials = \
                     self.api.get_sensor_referentials(sensor['id'])
@@ -174,8 +175,8 @@ class ImportBlinis(Command):
                 referential = self.api.create_object(
                     'referential', referential)
                 referential_id = referential['id']
-                self.log.info('Referential {:d} created.'.format(
-                    referential_id))
+                self.log.info('Referential "{}" created.'.format(
+                    referential_name))
                 referentials_map[referential_name] = referential['id']
 
             referential_id = referentials_map[referential_name]
@@ -184,7 +185,7 @@ class ImportBlinis(Command):
             transfo_type = self.api.get_object_by_name(
                 'transfos/type', 'affine')
             if not transfo_type:
-                err = 'No transfo type "affine" available.'
+                err = 'Error: no transfo type "affine" available.'
                 raise RuntimeError(err)
 
             matrix = self.create_transfo_matrix(param_orient_shc_node)
@@ -207,7 +208,7 @@ class ImportBlinis(Command):
                 transfo['validity_end'] = self.validity_end
             transfo = self.api.create_object('transfo', transfo)
             transfo_id = transfo['id']
-            self.log.info('Transfo {:d} created.'.format(transfo_id))
+            self.log.info('Transfo "{}" created.'.format(transfo['name']))
 
             transfo_ids.append(transfo_id)
 
@@ -220,8 +221,8 @@ class ImportBlinis(Command):
                 'transfos': transfo_ids,
             }
             transfotree = self.api.create_object('transfotree', transfotree)
-            transfotree_id = transfotree['id']
-            self.log.info('Transfo tree {:d} created.'.format(transfotree_id))
+            self.log.info('Transfo tree "{}" created.'.format(
+                transfotree['name']))
 
         self.log.info('Success!')
 
@@ -245,7 +246,7 @@ class ImportBlinis(Command):
         }
         sensor = self.api.create_object('sensor', sensor)
         sensor_id = sensor['id']
-        self.log.info('Sensor {:d} created.'.format(sensor_id))
+        self.log.info('Sensor "{}" created.'.format(sensor_name))
 
         # create the base referential
         description = 'base referential for sensor group {:d}, ' \
@@ -260,8 +261,8 @@ class ImportBlinis(Command):
         }
         base_referential = self.api.create_object(
             'referential', base_referential)
-        base_referential_id = base_referential['id']
-        self.log.info('Referential {:d} created.'.format(base_referential_id))
+        self.log.info('Referential "{}" created.'.format(
+            base_referential['name']))
 
         referentials = []
 
@@ -280,8 +281,8 @@ class ImportBlinis(Command):
                 'srid': 0,
             }
             referential = self.api.create_object('referential', referential)
-            referential_id = referential['id']
-            self.log.info('Referential {:d} created.'.format(referential_id))
+            self.log.info('Referential "{}" created.'.format(
+                referential['name']))
             referentials.append(referential)
 
         return sensor_id, base_referential, referentials
@@ -296,28 +297,28 @@ class ImportBlinis(Command):
         matrix = [[], [], []]
         vecteur_node = param_orient_shc_node.find('Vecteur')
         if vecteur_node is None:
-            err = 'Parsing blinis file failed, no Vecteur tag'
+            err = 'Error: no Vecteur tag in blinis file'
             raise RuntimeError(err)
         try:
             tx, ty, tz = map(float, vecteur_node.text.split())
         except ValueError:
-            err = 'Parsing blinis file failed, Vecteur tag ' \
-                  'includes non-parsable numbers'
+            err = 'Error: Vecteur tag ' \
+                  'includes non-parseable numbers in blinis file'
             raise RuntimeError(err)
         rot_node = param_orient_shc_node.find('Rot')
         if rot_node is None:
-            err = 'Parsing blinis file failed, no Rot tag'
+            err = 'Error: no Rot tag in blinis file'
             raise RuntimeError(err)
         for i, l in enumerate(('L1', 'L2', 'L3')):
             l_node = rot_node.find(l)
             if l_node is None:
-                err = 'Parsing blinis file failed, no {} tag'.format(l)
+                err = 'Error: no {} tag in blinis file'.format(l)
                 raise RuntimeError(err)
             try:
                 v1, v2, v3 = map(float, l_node.text.split())
             except ValueError:
-                err = 'Parsing blinis file failed, {} tag ' \
-                      'includes non-parsable numbers'.format(l)
+                err = 'Error: {} tag includes non-parseable numbers ' \
+                      'in blinis files'.format(l)
                 raise RuntimeError(err)
             matrix[i].extend((v1, v2, v3, tx))
         return matrix
