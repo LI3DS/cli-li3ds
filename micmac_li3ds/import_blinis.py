@@ -12,8 +12,7 @@ from . import api
 class ImportBlinis(Command):
     """ import a blinis file
 
-        Create a sensor group if no sensor_id is provided. And create new
-        referentials and transforms for the sensor group.
+        Create a sensor group and corresponding referentials and transfos.
     """
 
     log = logging.getLogger(__name__)
