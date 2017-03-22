@@ -20,8 +20,7 @@ class ImportBlinis(Command):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.api_url = None
-        self.api_key = None
+        self.api = None
         self.sensor_id = None
         self.sensor_name = None
         self.owner = None
@@ -82,8 +81,7 @@ class ImportBlinis(Command):
         grouped in a transfo tree are created for the sensor group.
         """
 
-        self.api_url = parsed_args.api_url
-        self.api_key = parsed_args.api_key
+        self.api = api.Api(parsed_args.api_url, parsed_args.api_key)
         self.sensor_id = parsed_args.sensor_id
         self.sensor_name = parsed_args.sensor_name
         self.blinis_file = parsed_args.blinis_file
@@ -122,8 +120,7 @@ class ImportBlinis(Command):
         elif self.sensor_id:
             # look up sensor whose id is sensor_id, and raise an error
             # if there's no sensor with that id
-            sensor = api.get_object_by_id(
-                    'sensor', self.sensor_id, self.api_url, self.api_key)
+            sensor = self.api.get_object_by_id('sensor', self.sensor_id)
             if not sensor:
                 err = 'Sensor id {:d} not in db'.format(self.sensor_id)
                 raise RuntimeError(err)
@@ -131,15 +128,14 @@ class ImportBlinis(Command):
                 err = 'Sensor id {:d} is not of type "group"'.format(
                       self.sensor_id)
                 raise RuntimeError(err)
-            base_referential, referentials = api.get_sensor_referentials(
-                    self.sensor_id, self.api_url, self.api_key)
+            base_referential, referentials = \
+                self.api.get_sensor_referentials(self.sensor_id)
         else:
             # we have a sensor name, look up sensor with this name, and
             # create a sensor with that name if there's no such sensor
             # in the database
             assert(self.sensor_name)
-            sensor = api.get_object_by_name(
-                    'sensor', self.sensor_name, self.api_url, self.api_key)
+            sensor = self.api.get_object_by_name('sensor', self.sensor_name)
             if sensor:
                 if sensor['type'] != 'group':
                     err = 'Sensor id {:d} is not of type "group"'.format(
@@ -147,8 +143,8 @@ class ImportBlinis(Command):
                     raise RuntimeError(err)
                 self.log.info('Sensor {} found in database.'
                               .format(self.sensor_name))
-                base_referential, referentials = api.get_sensor_referentials(
-                    sensor['id'], self.api_url, self.api_key)
+                base_referential, referentials = \
+                    self.api.get_sensor_referentials(sensor['id'])
             else:
                 sensor_id, base_referential, referentials = \
                     self.create_sensor_group(
@@ -175,8 +171,8 @@ class ImportBlinis(Command):
                     'sensor': sensor_id,
                     'srid': 0,
                 }
-                referential = api.create_object(
-                        'referential', referential, self.api_url, self.api_key)
+                referential = self.api.create_object(
+                    'referential', referential)
                 referential_id = referential['id']
                 self.log.info('Referential {:d} created.'.format(
                     referential_id))
@@ -204,8 +200,7 @@ class ImportBlinis(Command):
                 transfo['validity_start'] = self.validity_start
             if self.validity_end:
                 transfo['validity_end'] = self.validity_end
-            transfo = api.create_object(
-                    'transfo', transfo, self.api_url, self.api_key)
+            transfo = self.api.create_object('transfo', transfo)
             transfo_id = transfo['id']
             self.log.info('Transfo {:d} created.'.format(transfo_id))
 
@@ -219,8 +214,7 @@ class ImportBlinis(Command):
                 'sensor_connections': False,
                 'transfos': transfo_ids,
             }
-            transfotree = api.create_object(
-                    'transfotree', transfotree, self.api_url, self.api_key)
+            transfotree = self.api.create_object('transfotree', transfotree)
             transfotree_id = transfotree['id']
             self.log.info('Transfo tree {:d} created.'.format(transfotree_id))
 
@@ -231,9 +225,6 @@ class ImportBlinis(Command):
         Create a sensor group, its base referentials and its N non-base
         referentials. One non-base referential per IdGrp node.
         """
-
-        assert(self.api_url)
-        assert(self.api_key)
 
         # create the sensor
         description = 'sensor group, imported from {}'.format(
@@ -247,8 +238,7 @@ class ImportBlinis(Command):
             'specifications': {},
             'type': 'group',
         }
-        sensor = api.create_object(
-                'sensor', sensor, self.api_url, self.api_key)
+        sensor = self.api.create_object('sensor', sensor)
         sensor_id = sensor['id']
         self.log.info('Sensor {:d} created.'.format(sensor_id))
 
@@ -263,8 +253,8 @@ class ImportBlinis(Command):
             'sensor': sensor_id,
             'srid': 0,
         }
-        base_referential = api.create_object(
-                'referential', base_referential, self.api_url, self.api_key)
+        base_referential = self.api.create_object(
+            'referential', base_referential)
         base_referential_id = base_referential['id']
         self.log.info('Referential {:d} created.'.format(base_referential_id))
 
@@ -284,8 +274,7 @@ class ImportBlinis(Command):
                 'sensor': sensor_id,
                 'srid': 0,
             }
-            referential = api.create_object(
-                    'referential', referential, self.api_url, self.api_key)
+            referential = self.api.create_object('referential', referential)
             referential_id = referential['id']
             self.log.info('Referential {:d} created.'.format(referential_id))
             referentials.append(referential)
