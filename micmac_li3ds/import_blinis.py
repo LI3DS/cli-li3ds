@@ -10,7 +10,7 @@ from . import api
 
 
 class ImportBlinis(Command):
-    """ Import a blinis file
+    """ import a blinis file
 
         Create a sensor group if no sensor_id is provided. And create new
         referentials and transforms for the sensor group.
