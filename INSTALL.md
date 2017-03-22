@@ -12,9 +12,15 @@
    $ virtualenv li3ds
    ```
 
-2. Install:
+1. Install:
 
     ```bash
     (li3ds) $ cd micmac_li3ds
     (li3ds) $ pip install -e .
+    ```
+
+1. Use:
+
+    ```
+    (li3ds) $ mm2li --help
     ```
