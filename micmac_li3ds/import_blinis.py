@@ -105,8 +105,7 @@ class ImportBlinis(Command):
         if not self.sensor_id and not self.sensor_name:
             # neither sensor_id nor sensor_name specified on the command
             # line, so create a sensor group
-            sensor_id, base_referential, referentials = \
-                self.create_sensor_group(
+            sensor_id, referentials = self.create_sensor_group(
                     key_im2_time_cam_node.text, param_orient_shc_nodes)
         elif self.sensor_id:
             # look up sensor whose id is sensor_id, and raise an error
@@ -120,8 +119,7 @@ class ImportBlinis(Command):
                 err = 'Error: sensor with id {:d} not of type "group"'.format(
                       self.sensor_id)
                 raise RuntimeError(err)
-            base_referential, referentials = \
-                self.api.get_sensor_referentials(self.sensor_id)
+            referentials = self.api.get_sensor_referentials(self.sensor_id)
         else:
             # we have a sensor name, look up sensor with this name, and
             # create a sensor with that name if there's no such sensor
@@ -135,15 +133,16 @@ class ImportBlinis(Command):
                     raise RuntimeError(err)
                 self.log.info('Sensor "{}" found in database.'
                               .format(self.sensor_name))
-                base_referential, referentials = \
-                    self.api.get_sensor_referentials(sensor['id'])
+                referentials = self.api.get_sensor_referentials(sensor['id'])
             else:
-                sensor_id, base_referential, referentials = \
-                    self.create_sensor_group(
+                sensor_id, referentials = self.create_sensor_group(
                         self.sensor_name, param_orient_shc_nodes)
 
+        # base referential
+        base_referential = referentials[0]
+
         # referential names to ids map
-        referentials_map = {r['name']: r['id'] for r in referentials}
+        referentials_map = {r['name']: r['id'] for r in referentials[1:]}
 
         transfo_ids = []
         for param_orient_shc_node in param_orient_shc_nodes:
@@ -239,6 +238,8 @@ class ImportBlinis(Command):
         sensor_id = sensor['id']
         self.log.info('Sensor "{}" created.'.format(sensor_name))
 
+        referentials = []
+
         # create the base referential
         description = 'base referential for sensor group {:d}, ' \
                       'imported from {}'.format(
@@ -254,8 +255,7 @@ class ImportBlinis(Command):
             'referential', base_referential)
         self.log.info('Referential "{}" created.'.format(
             base_referential['name']))
-
-        referentials = []
+        referentials.append(base_referential)
 
         for param_orient_shc_node in param_orient_shc_nodes:
             id_grp_node = param_orient_shc_node.find('IdGrp')
@@ -276,7 +276,7 @@ class ImportBlinis(Command):
                 referential['name']))
             referentials.append(referential)
 
-        return sensor_id, base_referential, referentials
+        return sensor_id, referentials
 
     @staticmethod
     def parse_blinis(blinis_file):

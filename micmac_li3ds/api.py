@@ -58,20 +58,19 @@ class Api(object):
 
     def get_sensor_referentials(self, sensor_id):
         referentials = self.get_objects('referential')
-        sensor_base_referential = None
-        sensor_referentials = []
+        sensor_referentials = [None]
         for referential in referentials:
             if referential['sensor'] != sensor_id:
                 continue
             if referential['root'] is True:
-                if sensor_base_referential:
+                if sensor_referentials[0]:
                     err = 'Multiple base referentials ' \
                           'found for sensor {:d}'.format(sensor_id)
                     raise RuntimeError(err)
-                sensor_base_referential = referential
+                sensor_referentials[0] = referential
             else:
                 sensor_referentials.append(referential)
-        if not sensor_base_referential:
+        if sensor_referentials[0] is None:
             err = 'No base referential found for sensor {:d}'.format(sensor_id)
             raise RuntimeError(err)
-        return sensor_base_referential, sensor_referentials
+        return sensor_referentials
