@@ -293,7 +293,7 @@ class ImportBlinis(Command):
         try:
             tx, ty, tz = map(float, vecteur_node.text.split())
         except ValueError:
-            err = 'Error: Vecteur tag ' \
+            err = 'Error: tag "Vecteur" ' \
                   'includes non-parseable numbers in blinis file'
             raise RuntimeError(err)
         rot_node = param_orient_shc_node.find('Rot')
@@ -308,7 +308,7 @@ class ImportBlinis(Command):
             try:
                 v1, v2, v3 = map(float, l_node.text.split())
             except ValueError:
-                err = 'Error: {} tag includes non-parseable numbers ' \
+                err = 'Error: tag "{}" includes non-parseable numbers ' \
                       'in blinis files'.format(l)
                 raise RuntimeError(err)
             matrix[i].extend((v1, v2, v3, tx))
