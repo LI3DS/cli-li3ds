@@ -7,6 +7,7 @@ import xml.etree.ElementTree
 from cliff.command import Command
 
 from . import api
+from . import xmlutil
 
 
 class ImportBlinis(Command):
@@ -87,20 +88,10 @@ class ImportBlinis(Command):
             err = 'Error: root node is not StructBlockCam in blinis file'
             raise RuntimeError(err)
 
-        key_im2_time_cam_node = root.find('KeyIm2TimeCam')
-        if key_im2_time_cam_node is None:
-            err = 'Error: no tag KeyIm2TimeCam in blinis file'
-            raise RuntimeError(err)
-
-        liaisons_shc_node = root.find('LiaisonsSHC')
-        if key_im2_time_cam_node is None:
-            err = 'Error: no tag LiaisonsSHC in blinis file'
-            raise RuntimeError(err)
-
-        param_orient_shc_nodes = liaisons_shc_node.findall('ParamOrientSHC')
-        if not param_orient_shc_nodes:
-            err = 'Error: no ParamOrientSHC tags in blinis file'
-            raise RuntimeError(err)
+        key_im2_time_cam_node = xmlutil.child(root, 'KeyIm2TimeCam')
+        liaisons_shc_node = xmlutil.child(root, 'LiaisonsSHC')
+        param_orient_shc_nodes = xmlutil.children(
+                liaisons_shc_node, 'ParamOrientSHC')
 
         if not self.sensor_id and not self.sensor_name:
             # neither sensor_id nor sensor_name specified on the command
@@ -147,7 +138,7 @@ class ImportBlinis(Command):
         transfo_ids = []
         for param_orient_shc_node in param_orient_shc_nodes:
 
-            id_grp_node = param_orient_shc_node.find('IdGrp')
+            id_grp_node = xmlutil.child(param_orient_shc_node, 'IdGrp')
             referential_name = id_grp_node.text
 
             if referential_name not in referentials_map:
@@ -258,7 +249,7 @@ class ImportBlinis(Command):
         referentials.append(base_referential)
 
         for param_orient_shc_node in param_orient_shc_nodes:
-            id_grp_node = param_orient_shc_node.find('IdGrp')
+            id_grp_node = xmlutil.child(param_orient_shc_node, 'IdGrp')
 
             # create referential
             description = 'referential for sensor group {:d}, ' \
@@ -286,25 +277,16 @@ class ImportBlinis(Command):
     @staticmethod
     def create_transfo_matrix(param_orient_shc_node):
         matrix = [[], [], []]
-        vecteur_node = param_orient_shc_node.find('Vecteur')
-        if vecteur_node is None:
-            err = 'Error: no Vecteur tag in blinis file'
-            raise RuntimeError(err)
+        vecteur_node = xmlutil.child(param_orient_shc_node, 'Vecteur')
         try:
             tx, ty, tz = map(float, vecteur_node.text.split())
         except ValueError:
             err = 'Error: tag "Vecteur" ' \
                   'includes non-parseable numbers in blinis file'
             raise RuntimeError(err)
-        rot_node = param_orient_shc_node.find('Rot')
-        if rot_node is None:
-            err = 'Error: no Rot tag in blinis file'
-            raise RuntimeError(err)
+        rot_node = xmlutil.child(param_orient_shc_node, 'Rot')
         for i, l in enumerate(('L1', 'L2', 'L3')):
-            l_node = rot_node.find(l)
-            if l_node is None:
-                err = 'Error: no {} tag in blinis file'.format(l)
-                raise RuntimeError(err)
+            l_node = xmlutil.child(rot_node, l)
             try:
                 v1, v2, v3 = map(float, l_node.text.split())
             except ValueError:
