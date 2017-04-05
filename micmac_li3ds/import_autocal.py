@@ -1,13 +1,13 @@
 import os
 import datetime
 import getpass
-import itertools
 import logging
 import xml.etree.ElementTree
 
 from cliff.command import Command
 
 from . import api
+from . import distortion
 from . import util
 
 
@@ -297,14 +297,12 @@ class ImportAutocal(Command):
 
         calib_distortion_node = util.child(node, 'CalibDistortion')
         mod_unif_node = util.child(calib_distortion_node, 'ModUnif')
-
-        type_, states, params = \
-            self.get_distortion_states_and_params(mod_unif_node)
+        typ, states, params = distortion.read_info(mod_unif_node)
 
         # retrieve the transfo type
-        transfo_type = self.api.get_object_by_name('transfos/type', type_)
+        transfo_type = self.api.get_object_by_name('transfos/type', typ)
         if not transfo_type:
-            err = 'Error: no transfo type "{}" available.'.format(type_)
+            err = 'Error: no transfo type "{}" available.'.format(typ)
             raise RuntimeError(err)
 
         description = 'distortion transformation, imported from {}'.format(
@@ -329,39 +327,6 @@ class ImportAutocal(Command):
         self.log.info('Transfo "{}" created.'.format(transfo['name']))
 
         return transfo
-
-    @classmethod
-    def get_distortion_states_and_params(cls, mod_unif_node):
-        type_modele_node = util.child(mod_unif_node, 'TypeModele')
-        type_modele = type_modele_node.text
-        if type_modele == 'eModele_FishEye_10_5_5':
-            states, params = cls.get_fisheye_distortion_states_and_params(
-                    mod_unif_node)
-        else:
-            # FIXME: handle other type_modele's
-            err = 'Error: "{}" type is unsupported.'.format(type_modele)
-            raise RuntimeError(err)
-        return type_modele, states, params
-
-    @classmethod
-    def get_fisheye_distortion_states_and_params(cls, mod_unif_node):
-        try:
-            state = float(util.child(mod_unif_node, 'Etats').text)
-        except ValueError:
-            err = 'Error: tag "Etats includes non-parseable numbers.'
-            raise RuntimeError(err)
-        params_nodes = itertools.islice(mod_unif_node.iter('Params'), 0, 24)
-        try:
-            params = map(lambda n: float(n.text), params_nodes)
-        except ValueError:
-            err = 'Error: tags "Params" include non-parseable numbers.'
-            raise RuntimeError(err)
-        params_list = list(params)
-        if len(params_list) != 24:
-            err = 'Error: expected 24 Params, got {:d}.'.format(
-                    len(params_list))
-            raise RuntimeError(err)
-        return [state], params_list
 
     @staticmethod
     def parse_autocal(autocal_file):
