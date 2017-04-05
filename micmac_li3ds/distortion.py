@@ -1,6 +1,6 @@
 import itertools
 
-from . import util
+from . import xmlutil
 
 _distortion_data_readers = {}
 
@@ -12,7 +12,7 @@ def read_info(mod_unif_node):
 
     :param mod_unif_node: the ``ModUnif`` XML node.
     """
-    type_modele_node = util.child(mod_unif_node, 'TypeModele')
+    type_modele_node = xmlutil.child(mod_unif_node, 'TypeModele')
     typ = type_modele_node.text
     states, params = _distortion_data_reader(typ)(mod_unif_node)
     return typ, states, params

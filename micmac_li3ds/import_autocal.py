@@ -8,7 +8,7 @@ from cliff.command import Command
 
 from . import api
 from . import distortion
-from . import util
+from . import xmlutil
 
 
 class ImportAutocal(Command):
@@ -295,8 +295,8 @@ class ImportAutocal(Command):
 
     def create_distortion_transform(self, node, ref_ii, ref_ri):
 
-        calib_distortion_node = util.child(node, 'CalibDistortion')
-        mod_unif_node = util.child(calib_distortion_node, 'ModUnif')
+        calib_distortion_node = xmlutil.child(node, 'CalibDistortion')
+        mod_unif_node = xmlutil.child(calib_distortion_node, 'ModUnif')
         typ, states, params = distortion.read_info(mod_unif_node)
 
         # retrieve the transfo type
