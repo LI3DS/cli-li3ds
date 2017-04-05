@@ -10,7 +10,7 @@ def read_info(mod_unif_node):
     Read the distortion info from the ``ModUnif`` XML node. Return a tuple
     of three elements: (type of model, list of states, list of params).
 
-    :param mod_unif_node: the ``ModUnifx`` XML node.
+    :param mod_unif_node: the ``ModUnif`` XML node.
     """
     type_modele_node = util.child(mod_unif_node, 'TypeModele')
     typ = type_modele_node.text
