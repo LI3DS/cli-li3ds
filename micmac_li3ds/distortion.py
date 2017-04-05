@@ -74,3 +74,55 @@ def fisheye_data_reader(mod_unif_node):
     states = _read_n_states(mod_unif_node, 1)
     params = _read_n_params(mod_unif_node, 24)
     return states, params
+
+
+@_register('eModelePolyDeg2')
+def polydeg2_data_reader(mod_unif_node):
+    """
+    Get the distortion states and params from the ModUnif XML node. Return a
+    tuple of 2 elements: the list of states and the list of params.
+
+    :param mod_unif_node: the ``ModUnif`` XML node.
+    """
+    states = _read_n_states(mod_unif_node, 3)
+    params = _read_n_params(mod_unif_node, 6)
+    return states, params
+
+
+@_register('eModelePolyDeg3')
+def polydeg3_data_reader(mod_unif_node):
+    """
+    Get the distortion states and params from the ModUnif XML node. Return a
+    tuple of 2 elements: the list of states and the list of params.
+
+    :param mod_unif_node: the ``ModUnif`` XML node.
+    """
+    states = _read_n_states(mod_unif_node, 3)
+    params = _read_n_params(mod_unif_node, 14)
+    return states, params
+
+
+@_register('eModelePolyDeg4')
+def polydeg4_data_reader(mod_unif_node):
+    """
+    Get the distortion states and params from the ModUnif XML node. Return a
+    tuple of 2 elements: the list of states and the list of params.
+
+    :param mod_unif_node: the ``ModUnif`` XML node.
+    """
+    states = _read_n_states(mod_unif_node, 3)
+    params = _read_n_params(mod_unif_node, 24)
+    return states, params
+
+
+@_register('eModelePolyDeg5')
+def polydeg5_data_reader(mod_unif_node):
+    """
+    Get the distortion states and params from the ModUnif XML node. Return a
+    tuple of 2 elements: the list of states and the list of params.
+
+    :param mod_unif_node: the ``ModUnif`` XML node.
+    """
+    states = _read_n_states(mod_unif_node, 3)
+    params = _read_n_params(mod_unif_node, 36)
+    return states, params
