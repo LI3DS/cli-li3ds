@@ -1,3 +1,13 @@
+import xml.etree.ElementTree
+
+def root(file, name):
+    tree = xml.etree.ElementTree.parse(file)
+    root_node = tree.getroot()
+    if root_node.tag != name:
+        err = 'Error: root tag differs from "{}" in XML'.format(name)
+        raise RuntimeError(err)
+    return root_node
+
 def child(parent, name):
     child_node = parent.find(name)
     if child_node is None:
@@ -12,3 +22,21 @@ def children(parent, name):
         err = 'Error: no tag "{}" in XML'.format(name)
         raise RuntimeError(err)
     return child_nodes
+
+def childFloat(parent, name):
+    node = child(parent, name)
+    try:
+        return float(node.text)
+    except ValueError:
+        err = 'Error: {} tag ' \
+          'includes non-parseable numbers in XML'.format(name)
+        raise RuntimeError(err)
+
+def childBool(parent, name):
+    node = child(parent, name)
+    try:
+        return bool(node.text)
+    except ValueError:
+        err = 'Error: {} tag ' \
+          'includes non-parseable boolean in XML'.format(name)
+        raise RuntimeError(err)
