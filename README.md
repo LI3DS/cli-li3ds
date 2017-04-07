@@ -231,7 +231,7 @@ A transfo tree may now be created to regroup all these transforms :
 ```
 
 
-## Orientation of a single image [WIP]
+## Orientation of a single image
 Example Image orientation XML files :
 - https://github.com/micmacIGN/Documentation/blob/master/FilesSamples/OriFrancesco.xml
 - https://github.com/micmacIGN/Documentation/blob/master/FilesSamples/Orientation-00.xml
@@ -356,7 +356,7 @@ A transfo tree may now be created to regroup this single transform :
     "isdefault": {cmdline.isdefault else True},
     "owner": "{cmdline.owner else {unix username}}",
     "sensor_connections": False,
-    "transfos": {pose_transfo.id}
+    "transfos": [ {pose_transfo.id} ]
 }
 ```
 
@@ -392,9 +392,49 @@ A transfo tree may now be created to regroup this single transform :
     "isdefault": {cmdline.isdefault else True},
     "owner": "{cmdline.owner else {unix username}}",
     "sensor_connections": False,
-    "transfos": {pose_transfo.id}
+    "transfos": [ {pose_transfo.id} ]
 }
 ```
 
 ### Creating the Transfo-Tree connecting these sensors
 ![XML Calib graph](https://g.gravizo.com/g?digraph%20G%20{compound=true;subgraph%20cluster_sensors{subgraph%20cluster_crop{label="Image";crop[shape=box;color=red];full[shape=box];}subgraph%20cluster_intrinsic{label="Intrinsic";euclidean[shape=box];rawImage[shape=box;color=red];}subgraph%20cluster_extrinsic{label="Extrinsic";camera[shape=box];world[shape=box;color=red];}}subgraph%20cluster_tf{label="TransfoTree";camera->connection1->euclidean;rawImage->connection2->full;})
+
+This introduces 2 transforms and a transfo tree
+```
+{
+    "description": "Extrinsic2Intrinsic",
+    "parameters": {},
+    "source": {Extrinsic/camera_referential.id},
+    "target": {Intrinsic/euclidean_referential.id},
+    "transfo_type": {transfo_type["identity"].id},
+    "tdate": {cmdline.tdate else undefined},
+    "validity_start": {cmdline.validity_start else undefined},
+    "validity_end": {cmdline.validity_end else undefined}
+}
+```
+
+```
+{
+    "description": "Intrinsic2Image",
+    "parameters": {},
+    "source": {Intrinsic/rawImage_referential.id},
+    "target": {Image/full_referential.id},
+    "transfo_type": {transfo_type["identity"].id},
+    "tdate": {cmdline.tdate else undefined},
+    "validity_start": {cmdline.validity_start else undefined},
+    "validity_end": {cmdline.validity_end else undefined}
+}
+```
+
+```
+{
+    "name": "{cmdline.transfotree_name else connection_{xml_file_basename}}",
+    "isdefault": {cmdline.isdefault else True},
+    "owner": "{cmdline.owner else {unix username}}",
+    "sensor_connections": True,
+    "transfos": [ {Extrinsic2Intrinsic.id} , {Intrinsic2Image.id} }
+}
+```
+
+## TODO : platform, config ...
+may be guided by a XML [chantierDescripteur](https://github.com/micmacIGN/Documentation/blob/master/Data/Arbre/MicMac-LocalChantierDescripteur.xml) or an XML [APERO](https://github.com/micmacIGN/Documentation/blob/master/FilesSamples/Test-NewApero-mm.xml) file. To be discussed...
