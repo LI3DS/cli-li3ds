@@ -2,7 +2,6 @@ import os
 import datetime
 import getpass
 import logging
-import xml.etree.ElementTree
 
 from cliff.command import Command
 
@@ -83,10 +82,7 @@ class ImportBlinis(Command):
         self.validity_start = parsed_args.validity_start
         self.validity_end = parsed_args.validity_end
 
-        root = self.parse_blinis(self.blinis_file)
-        if root.tag != 'StructBlockCam':
-            err = 'Error: root node is not StructBlockCam in blinis file'
-            raise RuntimeError(err)
+        root = xmlutil.root(self.blinis_file,'StructBlockCam')
 
         key_im2_time_cam_node = xmlutil.child(root, 'KeyIm2TimeCam')
         liaisons_shc_node = xmlutil.child(root, 'LiaisonsSHC')
@@ -180,9 +176,10 @@ class ImportBlinis(Command):
                 },
                 'source': base_referential['id'],
                 'target': referential_id,
-                'tdate': self.tdate or datetime.datetime.now().isoformat(),
                 'transfo_type': transfo_type['id'],
             }
+            if self.tdate:
+                transfo['tdate'] = self.tdate
             if self.validity_start:
                 transfo['validity_start'] = self.validity_start
             if self.validity_end:
@@ -268,11 +265,6 @@ class ImportBlinis(Command):
             referentials.append(referential)
 
         return sensor_id, referentials
-
-    @staticmethod
-    def parse_blinis(blinis_file):
-        tree = xml.etree.ElementTree.parse(blinis_file)
-        return tree.getroot()
 
     @staticmethod
     def create_transfo_matrix(param_orient_shc_node):

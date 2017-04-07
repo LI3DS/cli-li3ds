@@ -2,7 +2,6 @@ import os
 import datetime
 import getpass
 import logging
-import xml.etree.ElementTree
 
 from cliff.command import Command
 
@@ -82,20 +81,10 @@ class ImportAutocal(Command):
         self.validity_start = parsed_args.validity_start
         self.validity_end = parsed_args.validity_end
 
-        root = self.parse_autocal(self.autocal_file)
-        if root.tag != 'ExportAPERO':
-            err = 'Error: root node is not ExportAPERO in autocal file'
-            raise RuntimeError(err)
+        root = xmlutil.root(self.autocal_file,'ExportAPERO')
 
-        calibration_intern_conique_node = root.find('CalibrationInternConique')
-        if calibration_intern_conique_node is None:
-            err = 'Error: no tag CalibrationInternConique in autocal file'
-            raise RuntimeError(err)
-
-        sz_im_node = calibration_intern_conique_node.find('SzIm')
-        if sz_im_node is None:
-            err = 'Error: no tag SzIm in autocal file'
-            raise RuntimeError(err)
+        calibration_intern_conique_node = xmlutil.child(root,'CalibrationInternConique')
+        sz_im_node = xmlutil.child(calibration_intern_conique_node,'SzIm')
 
         if not self.sensor_id and not self.sensor_name:
             # neither sensor_id nor sensor_name specified on the command
@@ -247,10 +236,7 @@ class ImportAutocal(Command):
             err = 'Error: no transfo type "pinhole" available.'
             raise RuntimeError(err)
 
-        pp_node = calibration_intern_conique_node.find('PP')
-        if pp_node is None:
-            err = 'Error: no tag PP in autocal file'
-            raise RuntimeError(err)
+        pp_node = xmlutil.child(calibration_intern_conique_node,'PP')
         try:
             ppa = list(map(float, pp_node.text.split()))
         except ValueError:
@@ -258,16 +244,7 @@ class ImportAutocal(Command):
                   'includes non-parseable numbers in autocal file'
             raise RuntimeError(err)
 
-        f_node = calibration_intern_conique_node.find('F')
-        if f_node is None:
-            err = 'Error: no tag F in autocal file'
-            raise RuntimeError(err)
-        try:
-            focal = float(f_node.text)
-        except ValueError:
-            err = 'Error: F tag ' \
-                  'includes non-parseable numbers in autocal file'
-            raise RuntimeError(err)
+        focal = xmlutil.childFloat(calibration_intern_conique_node,'F')
 
         description = 'projective transformation, imported from {}'.format(
                       self.autocal_file_basename)
@@ -281,9 +258,10 @@ class ImportAutocal(Command):
             },
             'source': ref_eu['id'],
             'target': ref_ii['id'],
-            'tdate': self.tdate or datetime.datetime.now().isoformat(),
             'transfo_type': transfo_type['id'],
         }
+        if self.tdate:
+            transfo['tdate'] = self.tdate
         if self.validity_start:
             transfo['validity_start'] = self.validity_start
         if self.validity_end:
@@ -316,9 +294,10 @@ class ImportAutocal(Command):
             },
             'source': ref_ii['id'],
             'target': ref_ri['id'],
-            'tdate': self.tdate or datetime.datetime.now().isoformat(),
             'transfo_type': transfo_type['id'],
         }
+        if self.tdate:
+            transfo['tdate'] = self.tdate
         if self.validity_start:
             transfo['validity_start'] = self.validity_start
         if self.validity_end:
@@ -327,8 +306,3 @@ class ImportAutocal(Command):
         self.log.info('Transfo "{}" created.'.format(transfo['name']))
 
         return transfo
-
-    @staticmethod
-    def parse_autocal(autocal_file):
-        tree = xml.etree.ElementTree.parse(autocal_file)
-        return tree.getroot()

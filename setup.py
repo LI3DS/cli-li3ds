@@ -67,6 +67,7 @@ setup(
         'mm2li': [
             'import-blinis = micmac_li3ds.import_blinis:ImportBlinis',
             'import-autocal = micmac_li3ds.import_autocal:ImportAutocal',
+            'import-orimatis = micmac_li3ds.import_orimatis:ImportOrimatis',
         ]
     }
 )
