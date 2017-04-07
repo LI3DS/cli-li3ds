@@ -1,4 +1,7 @@
 import requests
+import os
+
+os.environ['NO_PROXY'] = 'localhost'
 
 
 class Api(object):
