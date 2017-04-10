@@ -40,3 +40,7 @@ def childBool(parent, name):
         err = 'Error: {} tag ' \
           'includes non-parseable boolean in XML'.format(name)
         raise RuntimeError(err)
+
+def childFloats(parent, name, names):
+    node = child(parent,name)
+    return list(map(lambda n : childFloat(node,n), names))

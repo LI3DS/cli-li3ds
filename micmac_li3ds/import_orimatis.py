@@ -24,8 +24,9 @@ class ImportOrimatis(Command):
         self.tdate = None
         self.validity_start = None
         self.validity_end = None
-        self.orimatis_file = None
-        self.orimatis_file_basename = None
+        self.file = None
+        self.file_basename = None
+        self.transfo_defaults = {}
 
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
@@ -66,7 +67,6 @@ class ImportOrimatis(Command):
         return parser
 
 
-
     def take_action(self, parsed_args):
         """
         Create or update a camera sensor.
@@ -75,305 +75,213 @@ class ImportOrimatis(Command):
         self.api = api.Api(parsed_args.api_url, parsed_args.api_key)
         self.sensor_id = parsed_args.sensor_id
         self.sensor_name = parsed_args.sensor_name
-        self.orimatis_file = parsed_args.orimatis_file
-        self.orimatis_file_basename = os.path.basename(self.orimatis_file)
+        self.file = parsed_args.orimatis_file
+        self.file_basename = os.path.basename(self.file)
         self.owner = parsed_args.owner or getpass.getuser()
         self.tdate = parsed_args.calibration_date
         self.validity_start = parsed_args.validity_start
         self.validity_end = parsed_args.validity_end
+        if self.tdate:
+            self.transfo_defaults['tdate'] = self.tdate
+        if self.validity_start:
+            self.transfo_defaults['validity_start'] = self.validity_start
+        if self.validity_end:
+            self.transfo_defaults['validity_end'] = self.validity_end
 
-        root = xmlutil.root(self.orimatis_file,'orientation')
-        geometry_node   = xmlutil.child(root, 'geometry')
-        intrinseque_node  = xmlutil.child(geometry_node, 'intrinseque')
-        extrinseque_node  = xmlutil.child(geometry_node, 'extrinseque')
-        sensor_node  = xmlutil.child(intrinseque_node, 'sensor')
+        root = xmlutil.root(self.file,'orientation')
 
-        systeme   = xmlutil.child(extrinseque_node, 'systeme').text
-        grid_alti = xmlutil.child(extrinseque_node, 'grid_alti').text
+        sensor = self.get_or_create_camera_sensor(root)
 
-        self.srid = 0
-        if systeme is 'Lambert93' and grid_alti is 'RAF09' :
-            self.srid = 2154
+        ref_wo = self.get_or_create_wo_referential(root, sensor)
+        ref_eu = self.get_or_create_eu_referential(root, sensor)
+        ref_ii = self.get_or_create_ii_referential(root, sensor)
+        ref_ri = self.get_or_create_ri_referential(root, sensor)
 
-        if not self.sensor_id and not self.sensor_name:
-            # neither sensor_id nor sensor_name specified on the command
-            # line, so create a camera sensor
-            sensor, ref_ri, ref_ii, ref_eu, ref_wo = self.create_camera_sensor()
-        elif self.sensor_id:
-            # look up sensor whose id is sensor_id, and raise an error
-            # if there's no sensor with that id
-            sensor = self.api.get_object_by_id('sensor', self.sensor_id)
-            if not sensor:
-                err = 'Error: sensor with id {:d} not in db'.format(
-                        self.sensor_id)
-                raise RuntimeError(err)
-            if sensor['type'] != 'camera':
-                err = 'Error: sensor with id {:d} not of type "camera"'.format(
-                      self.sensor_id)
-                raise RuntimeError(err)
-            ref_ri, ref_ii, ref_eu = self.api.get_sensor_referentials(
-                    self.sensor_id)
-        else:
-            # we have a sensor name, look up sensor with this name, and
-            # create a sensor with that name if there's no such sensor
-            # in the database
-            assert(self.sensor_name)
-            sensor = self.api.get_object_by_name('sensor', self.sensor_name)
-            if sensor:
-                if sensor['type'] != 'camera':
-                    err = 'Error: sensor with id {:d} not of type ' \
-                          '"camera"'.format(sensor['id'])
-                    raise RuntimeError(err)
-                self.log.info('Sensor "{}" found in database.'
-                              .format(self.sensor_name))
-                ref_ri, ref_ii, ref_eu, ref_wo = \
-                    self.api.get_sensor_referentials(sensor['id'])
-            else:
-                sensor, ref_ri, ref_ii, ref_eu, ref_wo = self.create_camera_sensor()
+        pinhole     = self.get_or_create_pinh_transform(root, ref_eu, ref_ii)
+        distortion  = self.get_or_create_dist_transform(root, ref_ii, ref_ri)
+        pose        = self.get_or_create_pose_transform(root, ref_wo, ref_eu)
 
-        # create the "pinhole" and "distortion" transforms
-        pinhole    = self.create_pinhole_transform(sensor_node, ref_eu, ref_ii)
-        distortion = self.create_distortion_transform(sensor_node, ref_ii, ref_ri)
-        pose       = self.create_pose_transform(extrinseque_node, ref_wo, ref_eu)
-
-        # create the transfo tree
-        transfotree = {
-            'isdefault': True,
-            'name': self.orimatis_file_basename,
-            'owner': self.owner,
-            'sensor_connections': False,
-            'transfos': [pose['id'], pinhole['id'], distortion['id']],
-        }
-        transfotree = self.api.create_object('transfotree', transfotree)
-        self.log.info('Transfo tree "{}" created.'.format(
-            transfotree['name']))
+        transfotree = self.get_or_create_transfotree(root, [pinhole,distortion,pose])
 
         self.log.info('Success!')
 
-    def create_camera_sensor(self):
+    def get_or_create_camera_sensor(self, node):
         """
-        Create a camera sensor, and three referentials.
+        Create a camera sensor
         """
 
-        sensor_name = self.sensor_name or self.orimatis_file_basename
-
-        ret = []
+        sensor_name = self.sensor_name or self.file_basename
 
         # create the sensor
         description = 'camera sensor, imported from {}'.format(
-                self.orimatis_file_basename)
+                self.file_basename)
         sensor = {
             'name': sensor_name,
-            'brand': '',
             'description': description,
+            'type': 'camera',
+            'brand': '',
             'model': '',
             'serial_number': '',
             'specifications': {},
-            'type': 'camera',
         }
-        sensor = self.api.create_object('sensor', sensor)
-        sensor_id = sensor['id']
-        self.log.info('Sensor "{}" created.'.format(sensor_name))
 
-        ret.append(sensor)
+        return self.api.get_or_create_object('sensor', sensor, [], self.log)
 
-        # create the rawImage referential
-        description = 'origin: top left corner or top left pixel, ' \
-                      '+XY: raster pixel coordinates, ' \
-                      '+Z: inverse depth (measured along the optical axis), ' \
+
+    def get_or_create_wo_referential(self, node, sensor):
+
+        systeme   = xmlutil.child(node, 'geometry/extrinseque/systeme').text
+        grid_alti = xmlutil.child(node, 'geometry/extrinseque/grid_alti').text
+
+        srid = 0
+        if systeme is 'Lambert93' and grid_alti is 'RAF09' :
+            srid = 2154
+
+        description = 'world referential ({}/{}), ' \
                       'imported from {}'.format(
-                          sensor_id, self.orimatis_file_basename)
-        referential = {
-            'description': description,
-            'name': 'rawImage',
-            'root': True,
-            'sensor': sensor_id,
-            'srid': 0,
-        }
-        referential = self.api.create_object('referential', referential)
-        self.log.info('Referential "{}" created.'.format(referential['name']))
-
-        ret.append(referential)
-
-        # create the idealImage referential
-        description = 'origin: top left corner or top left pixel, ' \
-                      '+XY: raster pixel coordinates, ' \
-                      '+Z: inverse depth (measured along the optical axis), ' \
-                      'imported from {}'.format(
-                          sensor_id, self.orimatis_file_basename)
-        referential = {
-            'description': description,
-            'name': 'idealImage',
-            'root': False,
-            'sensor': sensor_id,
-            'srid': 0,
-        }
-        referential = self.api.create_object('referential', referential)
-        self.log.info('Referential "{}" created.'.format(referential['name']))
-
-        ret.append(referential)
-
-        # create the euclidean referential
-        description = 'origin: camera position, ' \
-                      '+X: right of the camera, ' \
-                      '+Y: bottom of the camera, ' \
-                      '+Z: optical axis (in front of the camera), ' \
-                      'imported from {}'.format(
-                          sensor_id, self.orimatis_file_basename)
-        referential = {
-            'description': description,
-            'name': 'euclidean',
-            'root': False,
-            'sensor': sensor_id,
-            'srid': 0,
-        }
-        referential = self.api.create_object('referential', referential)
-        self.log.info('Referential "{}" created.'.format(referential['name']))
-
-        ret.append(referential)
-
-        # create the world referential
-        description = 'world referential, ' \
-                      'imported from {}'.format(
-                          sensor_id, self.orimatis_file_basename)
+                          systeme, grid_alti, self.file_basename)
         referential = {
             'description': description,
             'name': 'world',
             'root': False,
-            'sensor': sensor_id,
-            'srid': self.srid,
+            'sensor': sensor['id'],
+            'srid': srid,
         }
-        referential = self.api.create_object('referential', referential)
-        self.log.info('Referential "{}" created.'.format(referential['name']))
+        return self.api.get_or_create_object('referential', referential, ['sensor'], self.log)
 
-        ret.append(referential)
 
-        return ret
+    def get_or_create_ri_referential(self, node, sensor):
+        description = 'origin: top left corner or top left pixel, ' \
+                      '+XY: raster pixel coordinates, ' \
+                      '+Z: inverse depth (measured along the optical axis), ' \
+                      'imported from {}'.format(self.file_basename)
+        referential = {
+            'description': description,
+            'name': 'rawImage',
+            'root': True,
+            'sensor': sensor['id'],
+            'srid': 0,
+        }
+        return self.api.get_or_create_object('referential', referential, ['sensor'], self.log)
 
-    def create_pinhole_transform(self, node, ref_eu, ref_ii):
 
-        image_size_node = xmlutil.child(node, 'image_size')
-        ppa_node = xmlutil.child(node, 'ppa')
+    def get_or_create_ii_referential(self, node, sensor):
+        description = 'origin: top left corner or top left pixel, ' \
+                      '+XY: raster pixel coordinates, ' \
+                      '+Z: inverse depth (measured along the optical axis), ' \
+                      'imported from {}'.format(self.file_basename)
+        referential = {
+            'description': description,
+            'name': 'idealImage',
+            'root': False,
+            'sensor': sensor['id'],
+            'srid': 0,
+        }
+        return self.api.get_or_create_object('referential', referential, ['sensor'], self.log)
 
-        width  = xmlutil.childFloat(image_size_node, 'width')
-        height = xmlutil.childFloat(image_size_node, 'height')
-        focal  = xmlutil.childFloat(ppa_node, 'focale')
-        ppa    = [ xmlutil.childFloat(ppa_node, 'c'), xmlutil.childFloat(ppa_node, 'l') ]
 
-        # retrieve the "pinhole" transfo type
-        transfo_type = self.api.get_object_by_name('transfos/type', 'pinhole')
-        if not transfo_type:
-            err = 'Error: no transfo type "pinhole" available.'
-            raise RuntimeError(err)
+    def get_or_create_eu_referential(self, node, sensor):
+        description = 'origin: camera position, ' \
+                      '+X: right of the camera, ' \
+                      '+Y: bottom of the camera, ' \
+                      '+Z: optical axis (in front of the camera), ' \
+                      'imported from {}'.format(self.file_basename)
+        referential = {
+            'description': description,
+            'name': 'euclidean',
+            'root': False,
+            'sensor': sensor['id'],
+            'srid': 0,
+        }
+        return self.api.get_or_create_object('referential', referential, ['sensor'], self.log)
 
-        description = 'projective transformation, imported from {}'.format(
-                      self.orimatis_file_basename)
 
-        transfo = {
+    def get_or_create_pinh_transform(self, node, ref_eu, ref_ii):
+
+        node  = xmlutil.child(node, 'geometry/intrinseque/sensor')
+        transfo_type = {
+            'name': 'pinhole',
+            'func_signature': [ 'focal', 'ppa' ],
+        }
+        transfo_type = self.api.get_or_create_object('transfos/type', transfo_type, [], self.log)
+
+        description = '"{}" transformation, imported from "{}"'.format(
+                      transfo_type['name'], self.file_basename)
+        # image_size  = xmlutil.childFloats(node, 'image_size', ['width', 'height'])
+        transfo = self.transfo_defaults
+        transfo.update({
             'name': 'projection',
             'description': description,
             'parameters': {
-                'focal': focal,
-                'ppa': ppa,
+                'focal': xmlutil.childFloat(node, 'ppa/focale'),
+                'ppa': xmlutil.childFloats(node, 'ppa', ['c','l']),
             },
             'source': ref_eu['id'],
             'target': ref_ii['id'],
             'transfo_type': transfo_type['id'],
+        })
+        return self.api.get_or_create_object('transfo', transfo, ['source','target'], self.log)
+
+
+    def get_or_create_dist_transform(self, node, ref_ii, ref_ri):
+
+        node  = xmlutil.child(node, 'geometry/intrinseque/sensor')
+        transfo_type = {
+            'name': 'distortionr357',
+            'func_signature': [ 'pps', 'coef' ],
         }
-        if self.tdate:
-            transfo['tdate'] = self.tdate
-        if self.validity_start:
-            transfo['validity_start'] = self.validity_start
-        if self.validity_end:
-            transfo['validity_end'] = self.validity_end
-        transfo = self.api.create_object('transfo', transfo)
-        self.log.info('Transfo "{}" created.'.format(transfo['name']))
+        transfo_type = self.api.get_or_create_object('transfos/type', transfo_type, [], self.log)
 
-        return transfo
-
-    def create_distortion_transform(self, node, ref_ii, ref_ri):
-
-        distortion_node = xmlutil.child(node, 'distortion')
-        pps_node = xmlutil.child(distortion_node, 'pps')
-        pps = [ xmlutil.childFloat(pps_node, 'c'), xmlutil.childFloat(pps_node, 'l') ]
-        r3 = xmlutil.childFloat(distortion_node, 'r3')
-        r5 = xmlutil.childFloat(distortion_node, 'r5')
-        r7 = xmlutil.childFloat(distortion_node, 'r7')
-
-        # retrieve the transfo type
-        transfo_type = self.api.get_object_by_name('transfos/type', 'distortionr357')
-        if not transfo_type:
-            err = 'Error: no transfo type "{}" available.'.format('distortionr357')
-            raise RuntimeError(err)
-
-        description = 'distortion transformation, imported from {}'.format(
-                      self.orimatis_file_basename)
-        transfo = {
+        description = '"{}" transformation, imported from "{}"'.format(
+                      transfo_type['name'], self.file_basename)
+        transfo = self.transfo_defaults
+        transfo.update({
             'name': 'distortion',
             'description': description,
             'parameters': {
-                'pps': pps,
-                'coef': [ r3, r5, r7 ]
+                'pps': xmlutil.childFloats(node, 'distortion/pps', ['c', 'l']),
+                'coef': xmlutil.childFloats(node, 'distortion', ['r3', 'r5', 'r7']),
             },
             'source': ref_ii['id'],
             'target': ref_ri['id'],
             'transfo_type': transfo_type['id'],
+        })
+        return self.api.get_or_create_object('transfo', transfo, ['source','target'], self.log)
+
+
+    def get_or_create_pose_transform(self, node, ref_world, ref_camera):
+
+        node  = xmlutil.child(node, 'geometry/extrinseque')
+        transfo_type = {
+            'name': 'affine43',
+            'func_signature': [ 'mat4x3' ],
         }
-        if self.tdate:
-            transfo['tdate'] = self.tdate
-        if self.validity_start:
-            transfo['validity_start'] = self.validity_start
-        if self.validity_end:
-            transfo['validity_end'] = self.validity_end
-        transfo = self.api.create_object('transfo', transfo)
-        self.log.info('Transfo "{}" created.'.format(transfo['name']))
+        transfo_type = self.api.get_or_create_object('transfos/type', transfo_type, [], self.log)
 
-        return transfo
-
-    def create_pose_transform(self, node, ref_world, ref_camera):
-
-        sommet_node  = xmlutil.child(node, 'sommet')
-        rotation_node  = xmlutil.child(node, 'rotation')
-        mat3d_node  = xmlutil.child(rotation_node, 'mat3d')
-        l1_node  = xmlutil.child(xmlutil.child(mat3d_node, 'l1'), 'pt3d')
-        l2_node  = xmlutil.child(xmlutil.child(mat3d_node, 'l2'), 'pt3d')
-        l3_node  = xmlutil.child(xmlutil.child(mat3d_node, 'l3'), 'pt3d')
-
-        Image2Ground = xmlutil.childBool(rotation_node, 'Image2Ground')
-        if Image2Ground :
+        if xmlutil.childBool(node, 'rotation/Image2Ground') :
             source, target = ref_camera, ref_world
         else :
             source, target = ref_world, ref_camera
 
-        tx = xmlutil.childFloat(sommet_node, 'easting')
-        ty = xmlutil.childFloat(sommet_node, 'northing')
-        tz = xmlutil.childFloat(sommet_node, 'altitude')
+        tx = xmlutil.childFloat(node, 'sommet/easting')
+        ty = xmlutil.childFloat(node, 'sommet/northing')
+        tz = xmlutil.childFloat(node, 'sommet/altitude')
+        l1  = xmlutil.childFloats(node, 'rotation/mat3d/l1/pt3d', ['x','y','z'])
+        l2  = xmlutil.childFloats(node, 'rotation/mat3d/l2/pt3d', ['x','y','z'])
+        l3  = xmlutil.childFloats(node, 'rotation/mat3d/l3/pt3d', ['x','y','z'])
 
-        x1 =  xmlutil.childFloat(l1_node,'x');
-        x2 =  xmlutil.childFloat(l2_node,'x');
-        x3 =  xmlutil.childFloat(l3_node,'x');
-        y1 =  xmlutil.childFloat(l1_node,'y');
-        y2 =  xmlutil.childFloat(l2_node,'y');
-        y3 =  xmlutil.childFloat(l3_node,'y');
-        z1 =  xmlutil.childFloat(l1_node,'z');
-        z2 =  xmlutil.childFloat(l2_node,'z');
-        z3 =  xmlutil.childFloat(l3_node,'z');
+        matrix = []
+        matrix.extend(l1)
+        matrix.append(tx)
+        matrix.extend(l2)
+        matrix.append(ty)
+        matrix.extend(l3)
+        matrix.append(tz)
 
-        matrix = [
-            x1, y1, z1, tx,
-            x2, y2, z2, ty,
-            x3, y3, z3, tz
-        ]
-
-        # retrieve the transfo type
-        transfo_type = self.api.get_object_by_name('transfos/type', 'affine43')
-        if not transfo_type:
-            err = 'Error: no transfo type "{}" available.'.format('affine43')
-            raise RuntimeError(err)
-
-        description = 'pose transformation, imported from {}'.format(
-                      self.orimatis_file_basename)
-        transfo = {
+        description = '"{}" transformation, imported from "{}"'.format(
+                      transfo_type['name'], self.file_basename)
+        transfo = self.transfo_defaults
+        transfo.update({
             'name': 'pose',
             'description': description,
             'parameters': {
@@ -382,14 +290,19 @@ class ImportOrimatis(Command):
             'source': source['id'],
             'target': target['id'],
             'transfo_type': transfo_type['id'],
-        }
-        if self.tdate:
-            transfo['tdate'] = self.tdate
-        if self.validity_start:
-            transfo['validity_start'] = self.validity_start
-        if self.validity_end:
-            transfo['validity_end'] = self.validity_end
-        transfo = self.api.create_object('transfo', transfo)
-        self.log.info('Transfo "{}" created.'.format(transfo['name']))
+        })
+        return self.api.get_or_create_object('transfo', transfo, ['source','target'], self.log)
 
-        return transfo
+
+    def get_or_create_transfotree(self, node, transfos):
+        """
+        Create the transfo tree
+        """
+        transfotree = {
+            'name': self.file_basename,
+            'owner': self.owner,
+            'isdefault': True,
+            'sensor_connections': False,
+            'transfos': list(map(lambda t: t['id'], transfos)),
+        }
+        return self.api.get_or_create_object('transfotree', transfotree, ['transfos'], self.log)
