@@ -207,14 +207,14 @@ class ImportOrimatis(Command):
 
         description = '"{}" transformation, imported from "{}"'.format(
                       transfo_type['name'], self.file_basename)
-        # image_size  = xmlutil.childFloats(node, 'image_size', ['width', 'height'])
+        # image_size  = xmlutil.child_floats(node, 'image_size', ['width', 'height'])
         transfo = self.transfo_defaults
         transfo.update({
             'name': 'projection',
             'description': description,
             'parameters': {
-                'focal': xmlutil.childFloat(node, 'ppa/focale'),
-                'ppa': xmlutil.childFloats(node, 'ppa', ['c','l']),
+                'focal': xmlutil.child_float(node, 'ppa/focale'),
+                'ppa': xmlutil.child_floats(node, 'ppa', ['c','l']),
             },
             'source': ref_eu['id'],
             'target': ref_ii['id'],
@@ -239,8 +239,8 @@ class ImportOrimatis(Command):
             'name': 'distortion',
             'description': description,
             'parameters': {
-                'pps': xmlutil.childFloats(node, 'distortion/pps', ['c', 'l']),
-                'coef': xmlutil.childFloats(node, 'distortion', ['r3', 'r5', 'r7']),
+                'pps': xmlutil.child_floats(node, 'distortion/pps', ['c', 'l']),
+                'coef': xmlutil.child_floats(node, 'distortion', ['r3', 'r5', 'r7']),
             },
             'source': ref_ii['id'],
             'target': ref_ri['id'],
@@ -258,17 +258,17 @@ class ImportOrimatis(Command):
         }
         transfo_type = self.api.get_or_create_object('transfos/type', transfo_type, [], self.log)
 
-        if xmlutil.childBool(node, 'rotation/Image2Ground') :
+        if xmlutil.child_bool(node, 'rotation/Image2Ground') :
             source, target = ref_camera, ref_world
         else :
             source, target = ref_world, ref_camera
 
-        tx = xmlutil.childFloat(node, 'sommet/easting')
-        ty = xmlutil.childFloat(node, 'sommet/northing')
-        tz = xmlutil.childFloat(node, 'sommet/altitude')
-        l1  = xmlutil.childFloats(node, 'rotation/mat3d/l1/pt3d', ['x','y','z'])
-        l2  = xmlutil.childFloats(node, 'rotation/mat3d/l2/pt3d', ['x','y','z'])
-        l3  = xmlutil.childFloats(node, 'rotation/mat3d/l3/pt3d', ['x','y','z'])
+        tx = xmlutil.child_float(node, 'sommet/easting')
+        ty = xmlutil.child_float(node, 'sommet/northing')
+        tz = xmlutil.child_float(node, 'sommet/altitude')
+        l1  = xmlutil.child_floats(node, 'rotation/mat3d/l1/pt3d', ['x','y','z'])
+        l2  = xmlutil.child_floats(node, 'rotation/mat3d/l2/pt3d', ['x','y','z'])
+        l3  = xmlutil.child_floats(node, 'rotation/mat3d/l3/pt3d', ['x','y','z'])
 
         matrix = []
         matrix.extend(l1)
