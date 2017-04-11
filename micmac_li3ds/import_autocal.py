@@ -1,5 +1,4 @@
 import os
-import datetime
 import getpass
 import logging
 
@@ -81,10 +80,10 @@ class ImportAutocal(Command):
         self.validity_start = parsed_args.validity_start
         self.validity_end = parsed_args.validity_end
 
-        root = xmlutil.root(self.autocal_file,'ExportAPERO')
+        root = xmlutil.root(self.autocal_file, 'ExportAPERO')
 
-        calibration_intern_conique_node = xmlutil.child(root,'CalibrationInternConique')
-        sz_im_node = xmlutil.child(calibration_intern_conique_node,'SzIm')
+        node = xmlutil.child(root, 'CalibrationInternConique')
+        # sz_im_node = xmlutil.child(node, 'SzIm')
 
         if not self.sensor_id and not self.sensor_name:
             # neither sensor_id nor sensor_name specified on the command
@@ -123,10 +122,8 @@ class ImportAutocal(Command):
                 sensor, ref_ri, ref_ii, ref_eu = self.create_camera_sensor()
 
         # create the "pinhole" and "distortion" transforms
-        pinhole = self.create_pinhole_transform(
-                calibration_intern_conique_node, ref_eu, ref_ii)
-        distortion = self.create_distortion_transform(
-               calibration_intern_conique_node, ref_ii, ref_ri)
+        pinhole = self.create_pinhole_transform(node, ref_eu, ref_ii)
+        distortion = self.create_distortion_transform(node, ref_ii, ref_ri)
 
         # create the transfo tree
         transfotree = {
@@ -226,8 +223,7 @@ class ImportAutocal(Command):
 
         return ret
 
-    def create_pinhole_transform(
-            self, calibration_intern_conique_node, ref_eu, ref_ii):
+    def create_pinhole_transform(self, node, ref_eu, ref_ii):
 
         # retrieve the "pinhole" transfo type
         transfo_type = self.api.get_object_by_name(
@@ -236,7 +232,7 @@ class ImportAutocal(Command):
             err = 'Error: no transfo type "pinhole" available.'
             raise RuntimeError(err)
 
-        pp_node = xmlutil.child(calibration_intern_conique_node,'PP')
+        pp_node = xmlutil.child(node, 'PP')
         try:
             ppa = list(map(float, pp_node.text.split()))
         except ValueError:
@@ -244,7 +240,7 @@ class ImportAutocal(Command):
                   'includes non-parseable numbers in autocal file'
             raise RuntimeError(err)
 
-        focal = xmlutil.childFloat(calibration_intern_conique_node,'F')
+        focal = xmlutil.childFloat(node, 'F')
 
         description = 'projective transformation, imported from {}'.format(
                       self.autocal_file_basename)
