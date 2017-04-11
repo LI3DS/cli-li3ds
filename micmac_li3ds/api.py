@@ -49,14 +49,14 @@ class Api(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_object_by_dict(self, typ, dict):
+    def get_object_by_dict(self, typ, dict_):
         url = self.api_url + '/{}s/'.format(typ)
         resp = requests.get(url, headers=self.headers)
         if resp.status_code == 200:
             objs = resp.json()
             try:
                 obj = next(o for o in objs if
-                    all(o[k] == v for k, v in dict.items() if k in o))
+                    all(o[k] == v for k, v in dict_.items() if k in o))
             except StopIteration:
                 return None
             return obj
@@ -107,10 +107,7 @@ class Api(object):
                 err = 'Error: {} with id {:d} not in db'.format(typ, obj['id'])
                 raise RuntimeError(err)
 
-            obj_keys = set(obj.keys())
-            got_keys = set(got.keys())
-            keys = obj_keys.intersection(got_keys)
-
+            all_keys = set(obj.keys()).intersection(got.keys())
             for key in keys:
                 if obj[key] != got[key]:
                     err = 'Error: "{}" mismatch in {} with id {:d} ("{}" vs "{}")'.format(
@@ -127,16 +124,11 @@ class Api(object):
 
         # look up by dict, and raise an error upon mismatch
         keys.append('name')
-        dict = {}
-        for k in keys:
-            dict[k] = obj[k]
-        got = self.get_object_by_dict(typ, dict)
+        dict_ = { k: obj[k] for k in keys }
+        got = self.get_object_by_dict(typ, dict_)
         if got:
             # raise an error upon value mismatch for specified keys
-            obj_keys = set(obj.keys())
-            got_keys = set(got.keys())
-            all_keys = obj_keys.intersection(got_keys)
-
+            all_keys = set(obj.keys()).intersection(got.keys())
             for key in all_keys:
                 if obj[key] != got[key]:
                     err = 'Error: "{}" mismatch in {} "{}" ("{}" vs "{}")'.format(

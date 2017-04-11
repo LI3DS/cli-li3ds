@@ -23,7 +23,7 @@ def children(parent, name):
         raise RuntimeError(err)
     return child_nodes
 
-def childFloat(parent, name):
+def child_float(parent, name):
     node = child(parent, name)
     try:
         return float(node.text)
@@ -32,7 +32,7 @@ def childFloat(parent, name):
           'includes non-parseable numbers in XML'.format(name)
         raise RuntimeError(err)
 
-def childBool(parent, name):
+def child_bool(parent, name):
     node = child(parent, name)
     try:
         return bool(node.text)
@@ -41,6 +41,6 @@ def childBool(parent, name):
           'includes non-parseable boolean in XML'.format(name)
         raise RuntimeError(err)
 
-def childFloats(parent, name, names):
+def child_floats(parent, name, names):
     node = child(parent,name)
     return list(map(lambda n : childFloat(node,n), names))
