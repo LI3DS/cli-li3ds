@@ -1,6 +1,7 @@
 import os
 import getpass
 import logging
+import json
 
 from cliff.command import Command
 
@@ -28,6 +29,7 @@ class ImportOrimatis(Command):
         self.transfo = {}
         self.staging = True
         self.staging_id = 0
+        self.print_indent = None
 
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
@@ -61,6 +63,9 @@ class ImportOrimatis(Command):
             help='validity end date for transfos (optional, '
                  'default is valid until forever)')
         parser.add_argument(
+            '--print-indent', type=int,
+            help='number of spaces for pretty print indenting')
+        parser.add_argument(
             'orimatis_file',
             help='the orimatis file')
         return parser
@@ -82,6 +87,7 @@ class ImportOrimatis(Command):
         self.tdate = parsed_args.calibration_date
         self.validity_start = parsed_args.validity_start
         self.validity_end = parsed_args.validity_end
+        self.print_indent = parsed_args.print_indent
         if self.tdate:
             self.transfo['tdate'] = self.tdate
         if self.validity_start:
@@ -304,7 +310,8 @@ class ImportOrimatis(Command):
         if self.api:
             return self.api.get_or_create_object(typ, obj, keys, self.log)
         else:
-            self.log.info('[{}:{}] {}'.format(typ, self.staging_id, obj))
+            strobj = json.dumps(obj,indent=self.print_indent)
+            self.log.info('[{}:{}] {}'.format(typ, self.staging_id, strobj))
             if 'id' not in obj:
                 obj['id'] = self.staging_id
                 self.staging_id = self.staging_id + 1
