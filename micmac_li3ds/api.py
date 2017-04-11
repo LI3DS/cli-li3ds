@@ -7,6 +7,14 @@ os.environ['NO_PROXY'] = 'localhost'
 class Api(object):
 
     def __init__(self, api_url, api_key):
+        if not api_url:
+            err = 'Error: no api url provided'
+            raise ValueError(err)
+
+        if not api_key:
+            err = 'Error: no api key provided'
+            raise ValueError(err)
+
         self.api_url = api_url.rstrip('/')
         self.headers = {
             'Accept': 'application/json',

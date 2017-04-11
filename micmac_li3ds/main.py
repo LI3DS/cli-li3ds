@@ -6,7 +6,7 @@ from cliff.commandmanager import CommandManager
 class Mm2Li(App):
 
     def __init__(self):
-        super().__init__(
+        super(Mm2Li, self).__init__(
             description='The "micmac to li3ds" command line',
             version='0.1',
             command_manager=CommandManager('mm2li'),

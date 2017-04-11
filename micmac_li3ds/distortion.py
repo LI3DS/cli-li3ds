@@ -7,10 +7,10 @@ _distortion_data_readers = {}
 
 def read_info(mod_unif_node):
     """
-    Read the distortion info from the ``ModUnif`` XML node. Return a tuple
+    Read the distortion info from the ``ModUnif`` XML node. Return a tuple
     of three elements: (type of model, list of states, list of params).
 
-    :param mod_unif_node: the ``ModUnif`` XML node.
+    :param mod_unif_node: the ``ModUnif`` XML node.
     """
     type_modele_node = xmlutil.child(mod_unif_node, 'TypeModele')
     typ = type_modele_node.text
@@ -69,7 +69,7 @@ def fisheye_data_reader(mod_unif_node):
     Get the distortion states and params from the ModUnif XML node. Return a
     tuple of 2 elements: the list of states and the list of params.
 
-    :param mod_unif_node: the ``ModUnif`` XML node.
+    :param mod_unif_node: the ``ModUnif`` XML node.
     """
     states = _read_n_states(mod_unif_node, 1)
     params = _read_n_params(mod_unif_node, 24)
@@ -82,7 +82,7 @@ def polydeg2_data_reader(mod_unif_node):
     Get the distortion states and params from the ModUnif XML node. Return a
     tuple of 2 elements: the list of states and the list of params.
 
-    :param mod_unif_node: the ``ModUnif`` XML node.
+    :param mod_unif_node: the ``ModUnif`` XML node.
     """
     states = _read_n_states(mod_unif_node, 3)
     params = _read_n_params(mod_unif_node, 6)
@@ -95,7 +95,7 @@ def polydeg3_data_reader(mod_unif_node):
     Get the distortion states and params from the ModUnif XML node. Return a
     tuple of 2 elements: the list of states and the list of params.
 
-    :param mod_unif_node: the ``ModUnif`` XML node.
+    :param mod_unif_node: the ``ModUnif`` XML node.
     """
     states = _read_n_states(mod_unif_node, 3)
     params = _read_n_params(mod_unif_node, 14)
@@ -108,7 +108,7 @@ def polydeg4_data_reader(mod_unif_node):
     Get the distortion states and params from the ModUnif XML node. Return a
     tuple of 2 elements: the list of states and the list of params.
 
-    :param mod_unif_node: the ``ModUnif`` XML node.
+    :param mod_unif_node: the ``ModUnif`` XML node.
     """
     states = _read_n_states(mod_unif_node, 3)
     params = _read_n_params(mod_unif_node, 24)
@@ -121,7 +121,7 @@ def polydeg5_data_reader(mod_unif_node):
     Get the distortion states and params from the ModUnif XML node. Return a
     tuple of 2 elements: the list of states and the list of params.
 
-    :param mod_unif_node: the ``ModUnif`` XML node.
+    :param mod_unif_node: the ``ModUnif`` XML node.
     """
     states = _read_n_states(mod_unif_node, 3)
     params = _read_n_params(mod_unif_node, 36)

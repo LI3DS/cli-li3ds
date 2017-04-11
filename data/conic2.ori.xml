@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<?xml-stylesheet type="text/xsl" href="./XSLT/orientation_1_0.xsl"?>
+<orientation>
+<version> 1.0 </version>
+<auxiliarydata>
+<image_name>Clermont-111005_0906-22-00002_0000000</image_name>
+<stereopolis>
+<chantier>Clermont</chantier>
+<date>111005</date>
+<session>906</session>
+<section>2</section>
+<numero>0</numero>
+<position>22</position>
+<flatfield_name>FlatField_268927037_04_2009.tif</flatfield_name>
+</stereopolis>
+<image_date>
+<year>2011</year>
+<month>10</month>
+<day>5</day>
+<time_system> UTC </time_system>
+<hour>15</hour>
+<minute>31</minute>
+<second>16.32</second>
+</image_date>
+</auxiliarydata>
+<geometry>
+<extrinseque>
+<systeme>Lambert93</systeme>
+<grid_alti>Raf98</grid_alti>
+<sommet>
+<easting>70638</easting>
+<northing>651969</northing>
+<altitude>390</altitude>
+</sommet>
+<rotation>
+<Image2Ground> true </Image2Ground>
+<mat3d> 
+<l1> 
+<pt3d> 
+<x> 1 </x>
+<y> 0 </y>
+<z> 0 </z>
+</pt3d>
+</l1> 
+<l2> 
+<pt3d> 
+<x> 0 </x>
+<y> 0 </y>
+<z> 1 </z>
+</pt3d>
+</l2> 
+<l3> 
+<pt3d> 
+<x> 0 </x>
+<y> -1 </y>
+<z> 0 </z>
+</pt3d>
+</l3> 
+</mat3d>
+</rotation>
+</extrinseque>
+<intrinseque>
+<sensor>
+<name> Pike_37 </name>
+<calibration_date> 4-3-2008 </calibration_date>
+<serial_number> 268927037 </serial_number>
+<image_size> 
+<width> 1920 </width>
+<height> 1080 </height>
+ </image_size>
+<ppa>
+<c> 960.860 </c>
+<l> 536.884 </l>
+<focale> 1396.439 </focale>
+</ppa>
+<distortion>
+<pps>
+<c> 954.876 </c>
+<l> 537.357 </l>
+</pps>
+<r3> -5.811586e-008</r3>
+<r5> 5.119552e-014</r5>
+<r7> -1.267293e-020</r7>
+</distortion>
+<pixel_size> 0.00000740</pixel_size>
+</sensor>
+</intrinseque>
+</geometry>
+</orientation>

@@ -47,6 +47,12 @@ def child_bool(parent, name):
 
 
 def child_floats(parent, name):
-    prefix, names, suffix = name.split("[\[\]]", 3)
-    names = names.split(',')
+    beg = name.find('[')
+    end = name.rfind(']')
+    if beg is -1 or end is -1:
+        err = 'Error: {} has no []-enclosed tag list'.format(name)
+        raise RuntimeError(err)
+    prefix = name[0:beg]
+    names = name[beg+1:end].split(',')
+    suffix = name[end+1:len(name)]
     return list(map(lambda n: child_float(parent, prefix+n+suffix), names))
