@@ -108,9 +108,10 @@ class ImportOrimatis(Command):
         # get or create pinhole, distortion and pose transforms
         pinh = self.get_or_create_pinh_transform(root, ref_eu, ref_ii)
         dist = self.get_or_create_dist_transform(root, ref_ii, ref_ri)
-        pose = self.get_or_create_pose_transform(root, ref_wo, ref_eu)
+        pose = self.get_or_create_pose_transforms(root, ref_wo, ref_eu)
 
-        transfotree = self.get_or_create_transfotree(root, [pinh, dist, pose])
+        transfos = [pinh, dist, pose[0]]
+        transfotree = self.get_or_create_transfotree(root, transfos)
 
         self.log.info('[{}] Success!'.format(transfotree['id']))
 
@@ -201,97 +202,76 @@ class ImportOrimatis(Command):
         return self.get_or_create('referential', referential, ['sensor'])
 
     def get_or_create_pinh_transform(self, node, ref_eu, ref_ii):
-
         node = xmlutil.child(node, 'geometry/intrinseque/sensor')
-        transfo_type = {
-            'name': 'pinhole',
-            'func_signature': ['focal', 'ppa'],
-        }
-        transfo_type = self.get_or_create('transfos/type', transfo_type, [])
 
-        description = '"{}" transformation, imported from "{}"'.format(
-                      transfo_type['name'], self.file_basename)
         # image_size  = xmlutil.child_floats(node, 'image_size/[width,height]')
-        transfo = self.transfo.copy()
-        transfo.update({
+
+        transfo = {
             'name': 'projection',
-            'description': description,
             'parameters': {
                 'focal': xmlutil.child_float(node, 'ppa/focale'),
                 'ppa': xmlutil.child_floats(node, 'ppa/[c,l]'),
             },
-            'source': ref_eu['id'],
-            'target': ref_ii['id'],
-            'transfo_type': transfo_type['id'],
-        })
-        return self.get_or_create('transfo', transfo, ['source', 'target'])
+            'transfo_type': 'pinhole',
+        }
+        return self.get_or_create_transfo(transfo, ref_eu, ref_ii)
 
     def get_or_create_dist_transform(self, node, ref_ii, ref_ri):
-
         node = xmlutil.child(node, 'geometry/intrinseque/sensor')
-        transfo_type = {
-            'name': 'distortionr357',
-            'func_signature': ['pps', 'coef'],
-        }
-        transfo_type = self.get_or_create('transfos/type', transfo_type, [])
 
-        description = '"{}" transformation, imported from "{}"'.format(
-                      transfo_type['name'], self.file_basename)
-        transfo = self.transfo.copy()
-        transfo.update({
+        transfo = {
             'name': 'distortion',
-            'description': description,
             'parameters': {
                 'pps': xmlutil.child_floats(node, 'distortion/pps/[c,l]'),
                 'coef': xmlutil.child_floats(node, 'distortion/[r3,r5,r7]'),
             },
-            'source': ref_ii['id'],
-            'target': ref_ri['id'],
-            'transfo_type': transfo_type['id'],
-        })
-        return self.get_or_create('transfo', transfo, ['source', 'target'])
-
-    def get_or_create_pose_transform(self, node, ref_world, ref_camera):
-
-        node = xmlutil.child(node, 'geometry/extrinseque')
-        transfo_type = {
-            'name': 'affine43',
-            'func_signature': ['mat4x3'],
+            'transfo_type': 'distortionr357',
         }
-        transfo_type = self.get_or_create('transfos/type', transfo_type, [])
+        return self.get_or_create_transfo(transfo, ref_ii, ref_ri)
 
+    def get_or_create_pose_transforms(self, node, ref_wo, ref_eu):
+        node = xmlutil.child(node, 'geometry/extrinseque')
+
+        p0 = xmlutil.child_floats(node, 'sommet/[easting,northing,altitude]')
         if xmlutil.child_bool(node, 'rotation/Image2Ground'):
-            source, target = ref_camera, ref_world
+            source, target = ref_eu, ref_wo
         else:
-            source, target = ref_world, ref_camera
+            source, target = ref_wo, ref_eu
 
-        tx = xmlutil.child_float(node, 'sommet/easting')
-        ty = xmlutil.child_float(node, 'sommet/northing')
-        tz = xmlutil.child_float(node, 'sommet/altitude')
-        l1 = xmlutil.child_floats(node, 'rotation/mat3d/l1/pt3d/[x,y,z]')
-        l2 = xmlutil.child_floats(node, 'rotation/mat3d/l2/pt3d/[x,y,z]')
-        l3 = xmlutil.child_floats(node, 'rotation/mat3d/l3/pt3d/[x,y,z]')
+        transfos = []
 
-        matrix = []
-        matrix.extend(l1)
-        matrix.append(tx)
-        matrix.extend(l2)
-        matrix.append(ty)
-        matrix.extend(l3)
-        matrix.append(tz)
+        if node.find('rotation/quaternion') is not None:
+            quat = xmlutil.child_floats(node, 'rotation/quaternion/[x,y,z,w]')
+            transfo = {
+                'name': 'pose_quat',
+                'parameters': {'quat': quat, 'vec3': p0},
+                'transfo_type': 'affine_quat',
+            }
+            transfo = self.get_or_create_transfo(transfo, source, target)
+            transfos.append(transfo)
 
-        description = '"{}" transformation, imported from "{}"'.format(
-                      transfo_type['name'], self.file_basename)
-        transfo = self.transfo.copy()
-        transfo.update({
-            'name': 'pose',
-            'description': description,
-            'parameters': {'mat4x3': matrix},
-            'source': source['id'],
-            'target': target['id'],
-            'transfo_type': transfo_type['id'],
-        })
-        return self.get_or_create('transfo', transfo, ['source', 'target'])
+        if node.find('rotation/mat3d') is not None:
+            l1 = xmlutil.child_floats(node, 'rotation/mat3d/l1/pt3d/[x,y,z]')
+            l2 = xmlutil.child_floats(node, 'rotation/mat3d/l2/pt3d/[x,y,z]')
+            l3 = xmlutil.child_floats(node, 'rotation/mat3d/l3/pt3d/[x,y,z]')
+
+            matrix = []
+            matrix.extend(l1)
+            matrix.append(p0[0])
+            matrix.extend(l2)
+            matrix.append(p0[1])
+            matrix.extend(l3)
+            matrix.append(p0[2])
+
+            transfo = {
+                'name': 'pose_mat',
+                'parameters': {'mat4x3': matrix},
+                'transfo_type': 'affine_mat',
+            }
+            transfo = self.get_or_create_transfo(transfo, source, target)
+            transfos.append(transfo)
+
+        return transfos
 
     def get_or_create_transfotree(self, node, transfos):
         """
@@ -310,9 +290,24 @@ class ImportOrimatis(Command):
         if self.api:
             return self.api.get_or_create_object(typ, obj, keys, self.log)
         else:
-            strobj = json.dumps(obj,indent=self.print_indent)
+            strobj = json.dumps(obj, indent=self.print_indent)
             self.log.info('[{}:{}] {}'.format(typ, self.staging_id, strobj))
             if 'id' not in obj:
                 obj['id'] = self.staging_id
                 self.staging_id = self.staging_id + 1
             return obj
+
+    def get_or_create_transfo(self, obj, source, target):
+        transfo_type = {
+            'name': obj['transfo_type'],
+            'func_signature': obj['parameters'].keys(),
+        }
+        transfo_type = self.get_or_create('transfos/type', transfo_type, [])
+        obj['transfo_type'] = transfo_type['id']
+        obj['source'] = source['id']
+        obj['target'] = target['id']
+        obj['description'] = '"{}" transformation, imported from "{}"'.format(
+                            transfo_type['name'], self.file_basename)
+        transfo = self.transfo.copy()
+        transfo.update(obj)
+        return self.get_or_create('transfo', transfo, ['source', 'target'])
