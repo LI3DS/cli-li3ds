@@ -1,5 +1,4 @@
 import os
-import datetime
 import getpass
 import logging
 
@@ -82,7 +81,7 @@ class ImportBlinis(Command):
         self.validity_start = parsed_args.validity_start
         self.validity_end = parsed_args.validity_end
 
-        root = xmlutil.root(self.blinis_file,'StructBlockCam')
+        root = xmlutil.root(self.blinis_file, 'StructBlockCam')
 
         key_im2_time_cam_node = xmlutil.child(root, 'KeyIm2TimeCam')
         liaisons_shc_node = xmlutil.child(root, 'LiaisonsSHC')
