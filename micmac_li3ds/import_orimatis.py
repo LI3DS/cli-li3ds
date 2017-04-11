@@ -15,7 +15,7 @@ class ImportOrimatis(Command):
     log = logging.getLogger(__name__)
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(ImportOrimatis, self).__init__(*args, **kwargs)
         self.api = None
         self.sensor_id = None
         self.sensor_name = None
@@ -26,18 +26,18 @@ class ImportOrimatis(Command):
         self.file = None
         self.file_basename = None
         self.transfo = {}
+        self.staging = True
+        self.staging_id = 0
 
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
-        parser = super().get_parser(prog_name)
+        parser = super(ImportOrimatis, self).get_parser(prog_name)
         parser.add_argument(
             '--api-url', '-u',
-            required=True,
-            help='the li3ds API URL (required)')
+            help='the li3ds API URL (optional)')
         parser.add_argument(
             '--api-key', '-k',
-            required=True,
-            help='the li3ds API key (required)')
+            help='the li3ds API key (optional)')
         parser.add_argument(
             '--sensor-id', '-s',
             type=int,
@@ -70,7 +70,10 @@ class ImportOrimatis(Command):
         Create or update a camera sensor.
         """
 
-        self.api = api.Api(parsed_args.api_url, parsed_args.api_key)
+        if parsed_args.api_url or parsed_args.api_key:
+            self.api = api.Api(parsed_args.api_url, parsed_args.api_key)
+        else:
+            self.log.info("Staging mode (no api url/key provided).")
         self.sensor_id = parsed_args.sensor_id
         self.sensor_name = parsed_args.sensor_name
         self.file = parsed_args.orimatis_file
@@ -103,7 +106,7 @@ class ImportOrimatis(Command):
 
         transfotree = self.get_or_create_transfotree(root, [pinh, dist, pose])
 
-        self.log.info('{:s}: Success!'.format(transfotree['id']))
+        self.log.info('[{}] Success!'.format(transfotree['id']))
 
     def get_or_create_camera_sensor(self, node):
         """
@@ -149,7 +152,7 @@ class ImportOrimatis(Command):
         return self.get_or_create('referential', referential, ['sensor'])
 
     def get_or_create_ri_referential(self, node, sensor):
-        description = 'origin: top left corner or top left pixel, ' \
+        description = 'origin: top left corner of top left pixel, ' \
                       '+XY: raster pixel coordinates, ' \
                       '+Z: inverse depth (measured along the optical axis), ' \
                       'imported from {}'.format(self.file_basename)
@@ -163,7 +166,7 @@ class ImportOrimatis(Command):
         return self.get_or_create('referential', referential, ['sensor'])
 
     def get_or_create_ii_referential(self, node, sensor):
-        description = 'origin: top left corner or top left pixel, ' \
+        description = 'origin: top left corner of top left pixel, ' \
                       '+XY: raster pixel coordinates, ' \
                       '+Z: inverse depth (measured along the optical axis), ' \
                       'imported from {}'.format(self.file_basename)
@@ -179,7 +182,7 @@ class ImportOrimatis(Command):
     def get_or_create_eu_referential(self, node, sensor):
         description = 'origin: camera position, ' \
                       '+X: right of the camera, ' \
-                      '+Y: bottom of the camera, ' \
+                      '+Y: bottom of the camera, ' \
                       '+Z: optical axis (in front of the camera), ' \
                       'imported from {}'.format(self.file_basename)
         referential = {
@@ -203,7 +206,7 @@ class ImportOrimatis(Command):
         description = '"{}" transformation, imported from "{}"'.format(
                       transfo_type['name'], self.file_basename)
         # image_size  = xmlutil.child_floats(node, 'image_size/[width,height]')
-        transfo = self.transfo
+        transfo = self.transfo.copy()
         transfo.update({
             'name': 'projection',
             'description': description,
@@ -228,7 +231,7 @@ class ImportOrimatis(Command):
 
         description = '"{}" transformation, imported from "{}"'.format(
                       transfo_type['name'], self.file_basename)
-        transfo = self.transfo
+        transfo = self.transfo.copy()
         transfo.update({
             'name': 'distortion',
             'description': description,
@@ -273,7 +276,7 @@ class ImportOrimatis(Command):
 
         description = '"{}" transformation, imported from "{}"'.format(
                       transfo_type['name'], self.file_basename)
-        transfo = self.transfo
+        transfo = self.transfo.copy()
         transfo.update({
             'name': 'pose',
             'description': description,
@@ -298,4 +301,11 @@ class ImportOrimatis(Command):
         return self.get_or_create('transfotree', transfotree, ['transfos'])
 
     def get_or_create(self, typ, obj, keys):
-        return self.api.get_or_create_object(typ, obj, keys, self.log)
+        if self.api:
+            return self.api.get_or_create_object(typ, obj, keys, self.log)
+        else:
+            self.log.info('[{}:{}] {}'.format(typ, self.staging_id, obj))
+            if 'id' not in obj:
+                obj['id'] = self.staging_id
+                self.staging_id = self.staging_id + 1
+            return obj
