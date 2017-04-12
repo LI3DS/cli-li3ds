@@ -65,4 +65,14 @@ def child_floats(parent, name):
     prefix = name[0:beg]
     names = name[beg+1:end].split(',')
     suffix = name[end+1:len(name)]
-    return list(map(lambda n: child_float(parent, prefix+n+suffix), names))
+    return [child_float(parent, prefix+n+suffix) for n in names]
+
+
+def child_floats_split(parent, name):
+    node = child(parent, name)
+    try:
+        return [float(v) for v in node.text.split()]
+    except ValueError:
+        err = 'Error: {} tag ' \
+          'includes non-parseable numbers in XML'.format(name)
+        raise RuntimeError(err)

@@ -1,6 +1,7 @@
 import os
 import getpass
 import logging
+import json
 
 from cliff.command import Command
 
@@ -25,20 +26,19 @@ class ImportBlinis(Command):
         self.tdate = None
         self.validity_start = None
         self.validity_end = None
-        self.blinis_file = None
-        self.blinis_file_basename = None
+        self.filename = None
+        self.basename = None
+        self.indent = None
 
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
         parser = super().get_parser(prog_name)
         parser.add_argument(
             '--api-url', '-u',
-            required=True,
-            help='the li3ds API URL (required)')
+            help='the li3ds API URL (optional)')
         parser.add_argument(
             '--api-key', '-k',
-            required=True,
-            help='the li3ds API key (required)')
+            help='the li3ds API key (optional)')
         parser.add_argument(
             '--sensor-id', '-s',
             type=int,
@@ -62,7 +62,10 @@ class ImportBlinis(Command):
             help='validity end date for transfos (optional, '
                  'default is valid until forever)')
         parser.add_argument(
-            'blinis_file',
+            '--indent', type=int,
+            help='number of spaces for pretty print indenting')
+        parser.add_argument(
+            'filename',
             help='the blinis file')
         return parser
 
@@ -70,150 +73,42 @@ class ImportBlinis(Command):
         """
         Create or update a sensor group.
         """
-
         self.api = api.Api(parsed_args.api_url, parsed_args.api_key)
         self.sensor_id = parsed_args.sensor_id
         self.sensor_name = parsed_args.sensor_name
-        self.blinis_file = parsed_args.blinis_file
-        self.blinis_file_basename = os.path.basename(self.blinis_file)
+        self.filename = parsed_args.filename
+        self.basename = os.path.basename(self.filename)
         self.owner = parsed_args.owner or getpass.getuser()
         self.tdate = parsed_args.calibration_date
         self.validity_start = parsed_args.validity_start
         self.validity_end = parsed_args.validity_end
+        self.indent = parsed_args.indent
+        if self.api.staging:
+            self.log.info("Staging mode (no api url/key provided).")
 
-        root = xmlutil.root(self.blinis_file, 'StructBlockCam')
+        root = xmlutil.root(self.filename, 'StructBlockCam')
+        nodes = xmlutil.children(root, 'LiaisonsSHC/ParamOrientSHC')
 
-        key_im2_time_cam_node = xmlutil.child(root, 'KeyIm2TimeCam')
-        liaisons_shc_node = xmlutil.child(root, 'LiaisonsSHC')
-        param_orient_shc_nodes = xmlutil.children(
-                liaisons_shc_node, 'ParamOrientSHC')
+        sensor = self.get_or_create_sensor_group(root)
+        base_ref = self.get_or_create_base_referential(root, sensor)
 
-        if not self.sensor_id and not self.sensor_name:
-            # neither sensor_id nor sensor_name specified on the command
-            # line, so create a sensor group
-            sensor_id, referentials = self.create_sensor_group(
-                    key_im2_time_cam_node.text, param_orient_shc_nodes)
-        elif self.sensor_id:
-            # look up sensor whose id is sensor_id, and raise an error
-            # if there's no sensor with that id
-            sensor = self.api.get_object_by_id('sensor', self.sensor_id)
-            if not sensor:
-                err = 'Error: sensor with id {:d} not in db'.format(
-                        self.sensor_id)
-                raise RuntimeError(err)
-            if sensor['type'] != 'group':
-                err = 'Error: sensor with id {:d} not of type "group"'.format(
-                      self.sensor_id)
-                raise RuntimeError(err)
-            referentials = self.api.get_sensor_referentials(self.sensor_id)
-        else:
-            # we have a sensor name, look up sensor with this name, and
-            # create a sensor with that name if there's no such sensor
-            # in the database
-            assert(self.sensor_name)
-            sensor = self.api.get_object_by_name('sensor', self.sensor_name)
-            if sensor:
-                if sensor['type'] != 'group':
-                    err = 'Error: sensor with id {:d} not of type ' \
-                          '"group"'.format(sensor['id'])
-                    raise RuntimeError(err)
-                self.log.info('Sensor "{}" found in database.'
-                              .format(self.sensor_name))
-                referentials = self.api.get_sensor_referentials(sensor['id'])
-            else:
-                sensor_id, referentials = self.create_sensor_group(
-                        self.sensor_name, param_orient_shc_nodes)
+        transfos = []
+        for node in nodes:
+            ref = self.get_or_create_referential(node, sensor)
+            transfo = self.get_or_create_transform(node, base_ref, ref)
+            transfos.append(transfo)
 
-        # base referential
-        base_referential = referentials[0]
-
-        # referential names to ids map
-        referentials_map = {r['name']: r['id'] for r in referentials[1:]}
-
-        transfo_ids = []
-        for param_orient_shc_node in param_orient_shc_nodes:
-
-            id_grp_node = xmlutil.child(param_orient_shc_node, 'IdGrp')
-            referential_name = id_grp_node.text
-
-            if referential_name not in referentials_map:
-                # create referential
-                description = 'referential for sensor group {:d}, ' \
-                              'imported from {}'.format(
-                                  sensor_id, self.blinis_file_basename)
-                referential = {
-                    'description': description,
-                    'name': referential_name,
-                    'root': True,
-                    'sensor': sensor_id,
-                    'srid': 0,
-                }
-                referential = self.api.create_object(
-                    'referential', referential)
-                referential_id = referential['id']
-                self.log.info('Referential "{}" created.'.format(
-                    referential_name))
-                referentials_map[referential_name] = referential['id']
-
-            referential_id = referentials_map[referential_name]
-
-            # retrieve the "affine" transfo type
-            transfo_type = self.api.get_object_by_name(
-                'transfos/type', 'affine')
-            if not transfo_type:
-                err = 'Error: no transfo type "affine" available.'
-                raise RuntimeError(err)
-
-            matrix = self.create_transfo_matrix(param_orient_shc_node)
-            description = 'affine transformation, imported from {}'.format(
-                    self.blinis_file_basename)
-            transfo = {
-                'name': 'Affine_{}'.format(referential_name),
-                'description': description,
-                'parameters': {
-                    'mat4x3': matrix
-                },
-                'source': base_referential['id'],
-                'target': referential_id,
-                'transfo_type': transfo_type['id'],
-            }
-            if self.tdate:
-                transfo['tdate'] = self.tdate
-            if self.validity_start:
-                transfo['validity_start'] = self.validity_start
-            if self.validity_end:
-                transfo['validity_end'] = self.validity_end
-            transfo = self.api.create_object('transfo', transfo)
-            transfo_id = transfo['id']
-            self.log.info('Transfo "{}" created.'.format(transfo['name']))
-
-            transfo_ids.append(transfo_id)
-
-        if len(transfo_ids):
-            transfotree = {
-                'isdefault': True,
-                'name': key_im2_time_cam_node.text,
-                'owner': self.owner,
-                'sensor_connections': False,
-                'transfos': transfo_ids,
-            }
-            transfotree = self.api.create_object('transfotree', transfotree)
-            self.log.info('Transfo tree "{}" created.'.format(
-                transfotree['name']))
+        transfotree = self.get_or_create_transfotree(root, transfos)
 
         self.log.info('Success!')
 
-    def create_sensor_group(self, sensor_name, param_orient_shc_nodes):
-        """
-        Create a sensor group, its base referentials and its N non-base
-        referentials. One non-base referential per IdGrp node.
-        """
-
-        # create the sensor
-        description = 'sensor group, imported from {}'.format(
-                self.blinis_file_basename)
+    def get_or_create_sensor_group(self, node):
+        name = xmlutil.child(node, 'KeyIm2TimeCam').text.strip()
+        description = 'sensor group, imported from "{}"'.format(
+                self.basename)
         sensor = {
-            'name': sensor_name,
+            'id': self.sensor_id,
+            'name': self.sensor_name or name,
             'brand': '',
             'description': description,
             'model': '',
@@ -221,68 +116,76 @@ class ImportBlinis(Command):
             'specifications': {},
             'type': 'group',
         }
-        sensor = self.api.create_object('sensor', sensor)
-        sensor_id = sensor['id']
-        self.log.info('Sensor "{}" created.'.format(sensor_name))
+        return self.get_or_create('sensor', sensor)
 
-        referentials = []
-
-        # create the base referential
+    def get_or_create_base_referential(self, node, sensor):
         description = 'base referential for sensor group {:d}, ' \
-                      'imported from {}'.format(
-                          sensor_id, self.blinis_file_basename)
-        base_referential = {
+                      'imported from "{}"'.format(
+                      sensor['id'], self.basename)
+        referential = {
             'description': description,
             'name': 'base',
             'root': True,
-            'sensor': sensor_id,
+            'sensor': sensor['id'],
             'srid': 0,
         }
-        base_referential = self.api.create_object(
-            'referential', base_referential)
-        self.log.info('Referential "{}" created.'.format(
-            base_referential['name']))
-        referentials.append(base_referential)
+        return self.get_or_create('referential', referential)
 
-        for param_orient_shc_node in param_orient_shc_nodes:
-            id_grp_node = xmlutil.child(param_orient_shc_node, 'IdGrp')
+    def get_or_create_referential(self, node, sensor):
+        description = 'referential for sensor group {:d}, ' \
+                      'imported from "{}"'.format(
+                          sensor['id'], self.basename)
+        referential = {
+            'name': xmlutil.child(node, 'IdGrp').text.strip(),
+            'description': description,
+            'root': False,
+            'sensor': sensor['id'],
+            'srid': 0,
+        }
+        return self.get_or_create('referential', referential)
 
-            # create referential
-            description = 'referential for sensor group {:d}, ' \
-                          'imported from {}'.format(
-                              sensor_id, self.blinis_file_basename)
-            referential = {
-                'description': description,
-                'name': id_grp_node.text,
-                'root': False,
-                'sensor': sensor_id,
-                'srid': 0,
-            }
-            referential = self.api.create_object('referential', referential)
-            self.log.info('Referential "{}" created.'.format(
-                referential['name']))
-            referentials.append(referential)
+    def get_or_create_transform(self, node, source, target):
+        matrix = []
+        p = xmlutil.child_floats_split(node, 'Vecteur')
+        for i, l in enumerate(('Rot/L1', 'Rot/L2', 'Rot/L3')):
+            matrix.extend(xmlutil.child_floats_split(node, l))
+            matrix.append(p[i])
 
-        return sensor_id, referentials
+        transfo = {
+            'name': target['name'],
+            'parameters': {'mat4x3': matrix},
+            'transfo_type': 'affine_mat',
+            'tdate': self.tdate,
+            'validity_start': self.validity_start,
+            'validity_end': self.validity_end,
+        }
+        return self.get_or_create_transfo(transfo, source, target)
 
-    @staticmethod
-    def create_transfo_matrix(param_orient_shc_node):
-        matrix = [[], [], []]
-        vecteur_node = xmlutil.child(param_orient_shc_node, 'Vecteur')
-        try:
-            tx, ty, tz = map(float, vecteur_node.text.split())
-        except ValueError:
-            err = 'Error: tag "Vecteur" ' \
-                  'includes non-parseable numbers in blinis file'
-            raise RuntimeError(err)
-        rot_node = xmlutil.child(param_orient_shc_node, 'Rot')
-        for i, l in enumerate(('L1', 'L2', 'L3')):
-            l_node = xmlutil.child(rot_node, l)
-            try:
-                v1, v2, v3 = map(float, l_node.text.split())
-            except ValueError:
-                err = 'Error: tag "{}" includes non-parseable numbers ' \
-                      'in blinis files'.format(l)
-                raise RuntimeError(err)
-            matrix[i].extend((v1, v2, v3, tx))
-        return matrix
+    def get_or_create_transfotree(self, node, transfos):
+        transfotree = {
+            'name': self.basename,
+            'owner': self.owner,
+            'isdefault': True,
+            'sensor_connections': False,
+            'transfos': [t['id'] for t in transfos],
+        }
+        return self.get_or_create('transfotree', transfotree)
+
+    def get_or_create(self, typ, obj):
+        obj, info = self.api.get_or_create_object(typ, obj)
+        self.log.info('{} {}({}) "{}"'.format(info, typ, obj['id'], obj['name']))
+        self.log.debug(json.dumps(obj, indent=self.indent))
+        return obj
+
+    def get_or_create_transfo(self, transfo, source, target):
+        transfo_type = {
+            'name': transfo['transfo_type'],
+            'func_signature': list(transfo['parameters'].keys()),
+        }
+        transfo_type = self.get_or_create('transfos/type', transfo_type)
+        transfo['transfo_type'] = transfo_type['id']
+        transfo['source'] = source['id']
+        transfo['target'] = target['id']
+        transfo['description'] = '"{}" transformation, imported from "{}"' \
+            .format(transfo_type['name'], self.basename)
+        return self.get_or_create('transfo', transfo)
