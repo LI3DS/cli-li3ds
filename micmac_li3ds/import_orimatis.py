@@ -107,7 +107,7 @@ class ImportOrimatis(Command):
         pose = self.get_or_create_pose_transforms(root, ref_wo, ref_eu)
 
         transfos = [pinh, dist, pose[0]]
-        transfotree = self.get_or_create_transfotree(root, transfos)
+        self.get_or_create_transfotree(root, transfos)
 
         metadata_dump = json.dumps(self.metadata, indent=self.indent)
         self.log.debug('[metadata] {}'.format(metadata_dump))
@@ -353,8 +353,9 @@ class ImportOrimatis(Command):
         return self.get_or_create('transfotree', transfotree)
 
     def get_or_create(self, typ, obj):
-        obj, info = self.api.get_or_create_object(typ, obj)
-        self.log.info('{} {}({}) "{}"'.format(info, typ, obj['id'], obj['name']))
+        obj, code = self.api.get_or_create_object(typ, obj)
+        info = '{} {}({}) "{}"'.format(code, typ, obj['id'], obj['name'])
+        self.log.info(info)
         self.log.debug(json.dumps(obj, indent=self.indent))
         return obj
 

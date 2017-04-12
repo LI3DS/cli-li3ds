@@ -17,7 +17,7 @@ class Api(object):
             'referential': ['name', 'sensor'],
             'sensor': ['name'],
         }
-        
+
         if api_url and api_key:
             self.api_url = api_url.rstrip('/')
             self.headers = {
@@ -74,7 +74,7 @@ class Api(object):
         raise RuntimeError(err)
 
     def get_object_by_name(self, typ, obj_name):
-        if self.staging != None:
+        if self.staging is not None:
             objs = self.staging[typ]
             obj = [obj for obj in objs if obj.name == obj_name]
             return obj[0] if obj else None
@@ -98,7 +98,7 @@ class Api(object):
             obj = [o for o in objs if all(
                     o[k] == v for k, v in dict_.items() if k in o)]
             return obj[0] if obj else None
-            
+
         url = self.api_url + '/{}s/'.format(typ)
         resp = requests.get(url, headers=self.headers)
         if resp.status_code == 200:
