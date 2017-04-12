@@ -29,8 +29,6 @@ class ImportOrimatis(Command):
         self.filename = None
         self.basename = None
         self.transfo = {}
-        self.staging = True
-        self.staging_id = 0
         self.indent = None
 
     def get_parser(self, prog_name):
@@ -77,9 +75,8 @@ class ImportOrimatis(Command):
         Create or update a camera sensor.
         """
 
-        if parsed_args.api_url or parsed_args.api_key:
-            self.api = api.Api(parsed_args.api_url, parsed_args.api_key)
-        else:
+        self.api = api.Api(parsed_args.api_url, parsed_args.api_key)
+        if self.api.staging:
             self.log.info("Staging mode (no api url/key provided).")
         self.sensor_id = parsed_args.sensor_id
         self.sensor_name = parsed_args.sensor_name
@@ -360,15 +357,10 @@ class ImportOrimatis(Command):
         return self.get_or_create('transfotree', transfotree, ['transfos'])
 
     def get_or_create(self, typ, obj, keys):
-        if self.api:
-            return self.api.get_or_create_object(typ, obj, keys, self.log)
-        else:
-            strobj = json.dumps(obj, indent=self.indent)
-            self.log.info('[{}:{}] {}'.format(typ, self.staging_id, strobj))
-            if 'id' not in obj:
-                obj['id'] = self.staging_id
-                self.staging_id = self.staging_id + 1
-            return obj
+        strobj = json.dumps(obj, indent=self.indent)
+        obj = self.api.get_or_create_object(typ, obj, keys, self.log)
+        self.log.info('[{}:{}] {}'.format(typ, obj['id'], strobj))
+        return obj
 
     def get_or_create_transfo(self, obj, source, target):
         transfo_type = {
