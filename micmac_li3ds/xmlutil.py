@@ -36,6 +36,16 @@ def child_float(parent, name):
         raise RuntimeError(err)
 
 
+def child_int(parent, name):
+    node = child(parent, name)
+    try:
+        return int(node.text)
+    except ValueError:
+        err = 'Error: {} tag ' \
+          'includes non-parseable numbers in XML'.format(name)
+        raise RuntimeError(err)
+
+
 def child_bool(parent, name):
     node = child(parent, name)
     try:
