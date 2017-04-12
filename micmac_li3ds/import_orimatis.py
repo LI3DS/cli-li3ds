@@ -288,7 +288,7 @@ class ImportOrimatis(Command):
             'tdate': self.calibration_datetime.isoformat(),
             'validity_start': self.validity_start,
             'validity_end': self.validity_end,
-            'transfo_type': 'distortionr357',
+            'transfo_type': 'polyradial7',
         }
         return self.get_or_create_transfo(transfo, ref_ii, ref_ri)
 

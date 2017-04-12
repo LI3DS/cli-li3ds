@@ -5,22 +5,25 @@ from . import xmlutil
 _distortion_data_readers = {}
 
 
-def read_info(mod_unif_node):
+def read_info(calib_disto_node):
     """
-    Read the distortion info from the ``ModUnif`` XML node. Return a tuple
-    of three elements: (type of model, list of states, list of params).
+    Read the distortion info from the ``CalibDistortion`` XML node.
+    Return a tuple of two elements: (type of model, dict parameters).
 
-    :param mod_unif_node: the ``ModUnif`` XML node.
+    :param disto_node: the ``CalibDistortion`` XML node.
     """
-    type_modele_node = xmlutil.child(mod_unif_node, 'TypeModele')
-    typ = type_modele_node.text
-    states, params = _distortion_data_reader(typ)(mod_unif_node)
-    return typ, states, params
+    disto_nodes = xmlutil.children(calib_disto_node, '*')
+    assert(len(disto_nodes) == 1)
+    disto_node = disto_nodes[0]
+    typ = disto_node.tag
+    if typ == 'ModUnif':
+        typ = xmlutil.child(disto_node, 'TypeModele').text.strip()
+    return _distortion_data_reader(typ)(disto_node)
 
 
 def _register(*types):
     """
-    To use as a decocator for registering distortion data reader functions.
+    To use as a decorator for registering distortion data reader functions.
     """
     def _wrapper(fn):
         for typ in types:
@@ -55,74 +58,98 @@ def _read_n_values(mod_unif_node, n, name):
     return values
 
 
-def _read_n_states(mod_unif_node, n):
-    return _read_n_values(mod_unif_node, n, 'Etats')
+def _read_parameters(mod_unif_node, nstates, nparams):
+    return {
+        'states': _read_n_values(mod_unif_node, nstates, 'Etats'),
+        'params': _read_n_values(mod_unif_node, nparams, 'Params'),
+    }
 
 
-def _read_n_params(mod_unif_node, n):
-    return _read_n_values(mod_unif_node, n, 'Params')
-
-
-@_register('eModele_FishEye_10_5_5', 'eModele_EquiSolid_FishEye_10_5_5')
-def fisheye_data_reader(mod_unif_node):
+@_register('eModele_FishEye_10_5_5')
+def fisheye_10_5_5_data_reader(disto_node):
     """
-    Get the distortion states and params from the ModUnif XML node. Return a
-    tuple of 2 elements: the list of states and the list of params.
+    Get the distortion parameters
+    from the ModUnif/eModele_FishEye_10_5_5 XML node.
 
     :param mod_unif_node: the ``ModUnif`` XML node.
     """
-    states = _read_n_states(mod_unif_node, 1)
-    params = _read_n_params(mod_unif_node, 24)
-    return states, params
+    return 'fisheye_10_5_5', _read_parameters(disto_node, 1, 24)
+
+
+@_register('eModele_EquiSolid_FishEye_10_5_5')
+def fisheye_10_5_5_equisolid_data_reader(disto_node):
+    """
+    Get the distortion parameters
+    from the ModUnif/eModele_EquiSolid_FishEye_10_5_5 XML node.
+
+    :param mod_unif_node: the ``ModUnif`` XML node.
+    """
+    return 'fisheye_10_5_5_equisolid', _read_parameters(disto_node, 1, 24)
 
 
 @_register('eModelePolyDeg2')
-def polydeg2_data_reader(mod_unif_node):
+def poly_2_data_reader(mod_unif_node):
     """
-    Get the distortion states and params from the ModUnif XML node. Return a
-    tuple of 2 elements: the list of states and the list of params.
+    Get the distortion parameters from the ModUnif/eModelePolyDeg2 XML node.
 
     :param mod_unif_node: the ``ModUnif`` XML node.
     """
-    states = _read_n_states(mod_unif_node, 3)
-    params = _read_n_params(mod_unif_node, 6)
-    return states, params
+    return 'poly_2', _read_parameters(mod_unif_node, 3, 6)
 
 
 @_register('eModelePolyDeg3')
-def polydeg3_data_reader(mod_unif_node):
+def poly_3_data_reader(disto_node):
     """
-    Get the distortion states and params from the ModUnif XML node. Return a
-    tuple of 2 elements: the list of states and the list of params.
+    Get the distortion parameters from the ModUnif/eModelePolyDeg3 XML node.
 
     :param mod_unif_node: the ``ModUnif`` XML node.
     """
-    states = _read_n_states(mod_unif_node, 3)
-    params = _read_n_params(mod_unif_node, 14)
-    return states, params
+    return 'poly_3', _read_parameters(disto_node, 3, 14)
 
 
 @_register('eModelePolyDeg4')
-def polydeg4_data_reader(mod_unif_node):
+def poly_4_data_reader(disto_node):
     """
-    Get the distortion states and params from the ModUnif XML node. Return a
-    tuple of 2 elements: the list of states and the list of params.
+    Get the distortion parameters from the ModUnif/eModelePolyDeg4 XML node.
 
     :param mod_unif_node: the ``ModUnif`` XML node.
     """
-    states = _read_n_states(mod_unif_node, 3)
-    params = _read_n_params(mod_unif_node, 24)
-    return states, params
+    return 'poly_4', _read_parameters(disto_node, 3, 24)
 
 
 @_register('eModelePolyDeg5')
-def polydeg5_data_reader(mod_unif_node):
+def poly_5_data_reader(disto_node):
     """
-    Get the distortion states and params from the ModUnif XML node. Return a
-    tuple of 2 elements: the list of states and the list of params.
+    Get the distortion parameters from the ModUnif/eModelePolyDeg5 XML node.
 
-    :param mod_unif_node: the ``ModUnif`` XML node.
+    :param disto_node: the ``ModUnif`` XML node.
     """
-    states = _read_n_states(mod_unif_node, 3)
-    params = _read_n_params(mod_unif_node, 36)
-    return states, params
+    return 'poly_5', _read_parameters(disto_node, 3, 36)
+
+
+@_register('ModRad')
+def poly_radial_data_reader(disto_node):
+    """
+    Get the distortion parameters from the ModRad XML node.
+
+    :param disto_node: the ``ModRad`` XML node.
+    """
+    coef = xmlutil.children_float(disto_node, 'CoeffDist')
+    typ = 'poly_radial_{}'.format(1+2*len(coef))
+    return typ, {
+        'pps': xmlutil.child_floats_split(disto_node, 'CDist'),
+        'coef': coef,
+    }
+
+
+@_register('ModPhgrStd')
+def poly_radial_p1p2_data_reader(disto_node):
+    """
+    Get the distortion parameters from the ModPhgrStd XML node.
+
+    :param disto_node: the ``ModPhgrStd`` XML node.
+    """
+    typ, parameters = poly_radial_data_reader(
+        xmlutil.child(disto_node, 'RadialePart'))
+    parameters['p'] = xmlutil.child_floats(disto_node, '[P1,P2]')
+    return typ+'_p1p2', parameters
