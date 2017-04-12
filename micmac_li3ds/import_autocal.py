@@ -26,6 +26,7 @@ class ImportAutocal(Command):
         self.validity_end = None
         self.autocal_file = None
         self.autocal_file_basename = None
+        self.metadata = None
 
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
