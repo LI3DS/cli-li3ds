@@ -241,7 +241,7 @@ class ImportAutocal(Command):
                   'includes non-parseable numbers in autocal file'
             raise RuntimeError(err)
 
-        focal = xmlutil.childFloat(node, 'F')
+        focal = xmlutil.child_float(node, 'F')
 
         description = 'projective transformation, imported from {}'.format(
                       self.autocal_file_basename)
