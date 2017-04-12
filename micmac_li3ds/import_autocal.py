@@ -100,12 +100,12 @@ class ImportAutocal(Command):
         pinh = self.get_or_create_pinh_transform(node, ref_eu, ref_ii)
         dist = self.get_or_create_dist_transform(node, ref_ii, ref_ri)
 
-        transfotree = self.get_or_create_transfotree(node, [pinh, dist])
+        self.get_or_create_transfotree(node, [pinh, dist])
 
         self.log.info('Success!')
 
     def get_or_create_camera_sensor(self, node):
-        image_size = xmlutil.child_floats_split(node,'SzIm')
+        image_size = xmlutil.child_floats_split(node, 'SzIm')
         description = 'camera sensor, imported from "{}"'.format(
                 self.basename)
         sensor = {
@@ -208,8 +208,9 @@ class ImportAutocal(Command):
         return self.get_or_create('transfotree', transfotree)
 
     def get_or_create(self, typ, obj):
-        obj, info = self.api.get_or_create_object(typ, obj)
-        self.log.info('{} {}({}) "{}"'.format(info, typ, obj['id'], obj['name']))
+        obj, code = self.api.get_or_create_object(typ, obj)
+        info = '{} {}({}) "{}"'.format(code, typ, obj['id'], obj['name'])
+        self.log.info(info)
         self.log.debug(json.dumps(obj, indent=self.indent))
         return obj
 
@@ -225,4 +226,3 @@ class ImportAutocal(Command):
         transfo['description'] = '"{}" transformation, imported from "{}"' \
             .format(transfo_type['name'], self.basename)
         return self.get_or_create('transfo', transfo)
-

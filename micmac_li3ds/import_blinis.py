@@ -98,7 +98,7 @@ class ImportBlinis(Command):
             transfo = self.get_or_create_transform(node, base_ref, ref)
             transfos.append(transfo)
 
-        transfotree = self.get_or_create_transfotree(root, transfos)
+        self.get_or_create_transfotree(root, transfos)
 
         self.log.info('Success!')
 
@@ -120,8 +120,7 @@ class ImportBlinis(Command):
 
     def get_or_create_base_referential(self, node, sensor):
         description = 'base referential for sensor group {:d}, ' \
-                      'imported from "{}"'.format(
-                      sensor['id'], self.basename)
+            'imported from "{}"'.format(sensor['id'], self.basename)
         referential = {
             'description': description,
             'name': 'base',
@@ -172,8 +171,9 @@ class ImportBlinis(Command):
         return self.get_or_create('transfotree', transfotree)
 
     def get_or_create(self, typ, obj):
-        obj, info = self.api.get_or_create_object(typ, obj)
-        self.log.info('{} {}({}) "{}"'.format(info, typ, obj['id'], obj['name']))
+        obj, code = self.api.get_or_create_object(typ, obj)
+        info = '{} {}({}) "{}"'.format(code, typ, obj['id'], obj['name'])
+        self.log.info(info)
         self.log.debug(json.dumps(obj, indent=self.indent))
         return obj
 
