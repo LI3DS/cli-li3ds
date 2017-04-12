@@ -1,8 +1,8 @@
 import xml.etree.ElementTree
 
 
-def root(file, name):
-    tree = xml.etree.ElementTree.parse(file)
+def root(filename, name):
+    tree = xml.etree.ElementTree.parse(filename)
     root_node = tree.getroot()
     if root_node.tag != name:
         err = 'Error: root tag differs from "{}" in XML'.format(name)

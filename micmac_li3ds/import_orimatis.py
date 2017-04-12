@@ -26,8 +26,8 @@ class ImportOrimatis(Command):
         self.tdate = None
         self.validity_start = None
         self.validity_end = None
-        self.file = None
-        self.file_basename = None
+        self.filename = None
+        self.basename = None
         self.transfo = {}
         self.staging = True
         self.staging_id = 0
@@ -83,8 +83,8 @@ class ImportOrimatis(Command):
             self.log.info("Staging mode (no api url/key provided).")
         self.sensor_id = parsed_args.sensor_id
         self.sensor_name = parsed_args.sensor_name
-        self.file = parsed_args.orimatis_file
-        self.file_basename = os.path.basename(self.file)
+        self.filename = parsed_args.orimatis_file
+        self.basename = os.path.basename(self.filename)
         self.owner = parsed_args.owner or getpass.getuser()
         self.tdate = parsed_args.calibration_date
         self.validity_start = parsed_args.validity_start
@@ -97,7 +97,7 @@ class ImportOrimatis(Command):
         if self.validity_end:
             self.transfo['validity_end'] = self.validity_end
 
-        root = xmlutil.root(self.file, 'orientation')
+        root = xmlutil.root(self.filename, 'orientation')
 
         self.metadata = self.get_metadata(root)
         self.acquisition_datetime = self.get_acquisition_datetime(root)
@@ -142,12 +142,14 @@ class ImportOrimatis(Command):
 
         return datetime.datetime(Y, m, d, H, M, S, s, pytz.UTC)
 
-    def get_calibration_datetime(self, node):
+    @staticmethod
+    def get_calibration_datetime(node):
         tag = 'geometry/intrinseque/sensor/calibration_date'
         D, M, Y = xmlutil.child(node, tag).text.strip().split('-')
         return datetime.date(int(Y), int(M), int(D))
 
-    def get_metadata(self, node):
+    @staticmethod
+    def get_metadata(node):
         version = xmlutil.child(node, 'version').text.strip()
         if version != '1.0':
             err = 'Error: orimatis version {} is not supported' \
@@ -186,7 +188,7 @@ class ImportOrimatis(Command):
         serial = xmlutil.child(node, 'serial_number').text.strip()
 
         description = 'camera sensor, imported from {}'.format(
-                self.file_basename)
+                self.basename)
         sensor = {
             'name': name,
             'description': description,
@@ -215,7 +217,7 @@ class ImportOrimatis(Command):
 
         description = 'world referential ({}/{}), ' \
                       'imported from {}'.format(
-                          systeme, grid_alti, self.file_basename)
+                          systeme, grid_alti, self.basename)
         referential = {
             'description': description,
             'name': systeme,
@@ -229,7 +231,7 @@ class ImportOrimatis(Command):
         description = 'origin: top left corner of top left pixel, ' \
                       '+XY: raster pixel coordinates, ' \
                       '+Z: inverse depth (measured along the optical axis), ' \
-                      'imported from {}'.format(self.file_basename)
+                      'imported from {}'.format(self.basename)
         referential = {
             'description': description,
             'name': '{}/raw'.format(sensor['name']),
@@ -243,7 +245,7 @@ class ImportOrimatis(Command):
         description = 'origin: top left corner of top left pixel, ' \
                       '+XY: raster pixel coordinates, ' \
                       '+Z: inverse depth (measured along the optical axis), ' \
-                      'imported from {}'.format(self.file_basename)
+                      'imported from {}'.format(self.basename)
         referential = {
             'description': description,
             'name': '{}/ideal'.format(sensor['name']),
@@ -258,7 +260,7 @@ class ImportOrimatis(Command):
                       '+X: right of the camera, ' \
                       '+Y: bottom of the camera, ' \
                       '+Z: optical axis (in front of the camera), ' \
-                      'imported from {}'.format(self.file_basename)
+                      'imported from {}'.format(self.basename)
         referential = {
             'description': description,
             'name': self.metadata['position'],
@@ -349,7 +351,7 @@ class ImportOrimatis(Command):
         Create the transfo tree
         """
         transfotree = {
-            'name': self.file_basename,
+            'name': self.basename,
             'owner': self.owner,
             'isdefault': True,
             'sensor_connections': False,
@@ -378,7 +380,7 @@ class ImportOrimatis(Command):
         obj['source'] = source['id']
         obj['target'] = target['id']
         obj['description'] = '"{}" transformation, imported from "{}"'.format(
-                            transfo_type['name'], self.file_basename)
+                            transfo_type['name'], self.basename)
         transfo = self.transfo.copy()
         transfo.update(obj)
         return self.get_or_create('transfo', transfo, ['source', 'target'])
