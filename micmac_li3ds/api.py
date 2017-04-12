@@ -7,21 +7,40 @@ os.environ['NO_PROXY'] = 'localhost'
 class Api(object):
 
     def __init__(self, api_url, api_key):
-        if not api_url:
-            err = 'Error: no api url provided'
-            raise ValueError(err)
+        self.api_url = None
+        self.headers = None
+        self.staging = None
+        
+        if api_url and api_key:
+            self.api_url = api_url.rstrip('/')
+            self.headers = {
+                'Accept': 'application/json',
+                'X-API-KEY': api_key
+                }
 
-        if not api_key:
-            err = 'Error: no api key provided'
-            raise ValueError(err)
+        else:
+            if api_key:
+                err = 'Error: no api url provided'
+                raise ValueError(err)
 
-        self.api_url = api_url.rstrip('/')
-        self.headers = {
-            'Accept': 'application/json',
-            'X-API-KEY': api_key
+            if api_url:
+                err = 'Error: no api key provided'
+                raise ValueError(err)
+
+            self.staging = {
+                'transfo': [],
+                'transfos/type': [],
+                'transfotree': [],
+                'referential': [],
+                'sensor': [],
             }
 
     def create_object(self, typ, obj):
+        if self.staging:
+            obj['id'] = len(self.staging[typ])
+            self.staging[typ].append(obj)
+            return obj
+
         url = self.api_url + '/{}s/'.format(typ)
         resp = requests.post(url, json=obj, headers=self.headers)
         if resp.status_code == 201:
@@ -32,6 +51,9 @@ class Api(object):
         raise RuntimeError(err)
 
     def get_object_by_id(self, typ, obj_id):
+        if self.staging:
+            return self.staging[typ][obj_id]
+
         url = self.api_url + '/{}s/{:d}/'.format(typ, obj_id)
         resp = requests.get(url, headers=self.headers)
         if resp.status_code == 200:
@@ -44,6 +66,13 @@ class Api(object):
         raise RuntimeError(err)
 
     def get_object_by_name(self, typ, obj_name):
+        if self.staging != None:
+            objs = self.staging[typ]
+            obj = [obj for obj in objs if obj.name == obj_name]
+            if obj:
+                obj = obj[0]
+            return obj
+
         url = self.api_url + '/{}s/'.format(typ)
         resp = requests.get(url, headers=self.headers)
         if resp.status_code == 200:
@@ -58,6 +87,14 @@ class Api(object):
         raise RuntimeError(err)
 
     def get_object_by_dict(self, typ, dict_):
+        if self.staging:
+            objs = self.staging[typ]
+            obj = [o for o in objs if all(
+                    o[k] == v for k, v in dict_.items() if k in o)]
+            if obj:
+                obj = obj[0]
+            return obj
+            
         url = self.api_url + '/{}s/'.format(typ)
         resp = requests.get(url, headers=self.headers)
         if resp.status_code == 200:
@@ -73,6 +110,9 @@ class Api(object):
         raise RuntimeError(err)
 
     def get_objects(self, typ):
+        if self.staging:
+            return self.staging[typ]
+
         url = self.api_url + '/{}s/'.format(typ)
         resp = requests.get(url, headers=self.headers)
         if resp.status_code == 200:
