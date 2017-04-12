@@ -5,7 +5,8 @@ def root(filename, name):
     tree = xml.etree.ElementTree.parse(filename)
     root_node = tree.getroot()
     if root_node.tag != name:
-        err = 'Error: root tag differs from "{}" in XML'.format(name)
+        err = 'Error: root tag differs from "{}" in XML file "{}"' \
+            .format(name, filename)
         raise RuntimeError(err)
     return root_node
 
@@ -13,7 +14,7 @@ def root(filename, name):
 def child(parent, name):
     child_node = parent.find(name)
     if child_node is None:
-        err = 'Error: no tag "{}" in XML'.format(name)
+        err = 'Error: no tag "{}" in XML tag "{}"'.format(name, parent.tag)
         raise RuntimeError(err)
     return child_node
 
@@ -21,7 +22,7 @@ def child(parent, name):
 def children(parent, name):
     child_nodes = parent.findall(name)
     if not child_nodes:
-        err = 'Error: no tag "{}" in XML'.format(name)
+        err = 'Error: no tag "{}" in XML tag "{}"'.format(name, parent.tag)
         raise RuntimeError(err)
     return child_nodes
 
@@ -31,8 +32,18 @@ def child_float(parent, name):
     try:
         return float(node.text)
     except ValueError:
-        err = 'Error: "{}" tag ' \
-          'includes non-parseable numbers in XML'.format(name)
+        err = 'Error: "{}" tag includes non-parseable numbers ' \
+          'in XML tag "{}"'.format(name, parent.tag)
+        raise RuntimeError(err)
+
+
+def children_float(parent, name):
+    nodes = children(parent, name)
+    try:
+        return [float(node.text) for node in nodes]
+    except ValueError:
+        err = 'Error: "{}" tag includes non-parseable numbers ' \
+          'in XML tag "{}"'.format(name, parent.tag)
         raise RuntimeError(err)
 
 
@@ -41,8 +52,8 @@ def child_int(parent, name):
     try:
         return int(node.text)
     except ValueError:
-        err = 'Error: "{}" tag ' \
-          'includes non-parseable numbers in XML'.format(name)
+        err = 'Error: "{}" tag includes a non-parseable integer ' \
+          'in XML tag "{}"'.format(name, parent.tag)
         raise RuntimeError(err)
 
 
@@ -51,8 +62,8 @@ def child_bool(parent, name):
     try:
         return bool(node.text)
     except ValueError:
-        err = 'Error: "{}" tag ' \
-          'includes non-parseable boolean in XML'.format(name)
+        err = 'Error: "{}" tag includes non-parseable boolean ' \
+          'in XML tag "{}"'.format(name, parent.tag)
         raise RuntimeError(err)
 
 
@@ -73,6 +84,6 @@ def child_floats_split(parent, name):
     try:
         return [float(v) for v in node.text.split()]
     except ValueError:
-        err = 'Error: "{}" tag ' \
-          'includes non-parseable numbers in XML'.format(name)
+        err = 'Error: "{}" tag includes non-parseable numbers ' \
+          'in XML tag "{}"'.format(name, parent.tag)
         raise RuntimeError(err)

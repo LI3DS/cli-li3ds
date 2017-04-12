@@ -88,19 +88,27 @@ class ImportAutocal(Command):
 
         root = xmlutil.root(self.filename, 'ExportAPERO')
         node = xmlutil.child(root, 'CalibrationInternConique')
+        assert(xmlutil.child(node, 'KnownConv').text.strip()
+               == 'eConvApero_DistM2C')
 
         sensor = self.get_or_create_camera_sensor(node)
 
-        # get or create euclidean, idealImage and rawImage referentials
-        ref_eu = self.get_or_create_eu_referential(node, sensor)
-        ref_ii = self.get_or_create_ii_referential(node, sensor)
-        ref_ri = self.get_or_create_ri_referential(node, sensor)
+        target = self.get_or_create_raw_image_referential(node, sensor)
+        disto_nodes = reversed(xmlutil.children(node, 'CalibDistortion'))
+        transfos = []
+        for i, disto_node in enumerate(disto_nodes):
+            source = self.get_or_create_distortion_referential(
+                disto_node, sensor, i)
+            distortion = self.get_or_create_distortion_transform(
+                disto_node, source, target, i)
+            target = source
+            transfos.append(distortion)
 
-        # get or create pinhole and distortion transforms
-        pinh = self.get_or_create_pinh_transform(node, ref_eu, ref_ii)
-        dist = self.get_or_create_dist_transform(node, ref_ii, ref_ri)
+        source = self.get_or_create_euclidean_referential(node, sensor)
+        pinhole = self.get_or_create_pinhole_transform(node, source, target)
+        transfos.append(pinhole)
 
-        self.get_or_create_transfotree(node, [pinh, dist])
+        self.get_or_create_transfotree(node, transfos)
 
         self.log.info('Success!')
 
@@ -122,7 +130,7 @@ class ImportAutocal(Command):
         }
         return self.get_or_create('sensor', sensor)
 
-    def get_or_create_ri_referential(self, node, sensor):
+    def get_or_create_raw_image_referential(self, node, sensor):
         description = 'origin: top left corner of top left pixel, ' \
                       '+XY: raster pixel coordinates, ' \
                       '+Z: inverse depth (measured along the optical axis), ' \
@@ -136,21 +144,21 @@ class ImportAutocal(Command):
         }
         return self.get_or_create('referential', referential)
 
-    def get_or_create_ii_referential(self, node, sensor):
+    def get_or_create_distortion_referential(self, node, sensor, i):
         description = 'origin: top left corner of top left pixel, ' \
                       '+XY: raster pixel coordinates, ' \
                       '+Z: inverse depth (measured along the optical axis), ' \
                       'imported from "{}"'.format(self.basename)
         referential = {
             'description': description,
-            'name': 'idealImage',
+            'name': 'undistorted{}'.format(i+1),
             'root': False,
             'sensor': sensor['id'],
             'srid': 0,
         }
         return self.get_or_create('referential', referential)
 
-    def get_or_create_eu_referential(self, node, sensor):
+    def get_or_create_euclidean_referential(self, node, sensor):
         description = 'origin: camera position, ' \
                       '+X: right of the camera, ' \
                       '+Y: bottom of the camera, ' \
@@ -165,7 +173,7 @@ class ImportAutocal(Command):
         }
         return self.get_or_create('referential', referential)
 
-    def get_or_create_pinh_transform(self, node, ref_eu, ref_ii):
+    def get_or_create_pinhole_transform(self, node, source, target):
         transfo = {
             'name': 'projection',
             'parameters': {
@@ -177,25 +185,20 @@ class ImportAutocal(Command):
             'validity_end': self.validity_end,
             'transfo_type': 'pinhole',
         }
-        return self.get_or_create_transfo(transfo, ref_eu, ref_ii)
+        return self.get_or_create_transfo(transfo, source, target)
 
-    def get_or_create_dist_transform(self, node, ref_ii, ref_ri):
-        calib_distortion_node = xmlutil.child(node, 'CalibDistortion')
-        mod_unif_node = xmlutil.child(calib_distortion_node, 'ModUnif')
-        typ, states, params = distortion.read_info(mod_unif_node)
+    def get_or_create_distortion_transform(self, node, source, target, i):
+        typ, parameters = distortion.read_info(node)
 
         transfo = {
-            'name': 'distortion',
-            'parameters': {
-                'states': states,
-                'params': params,
-            },
+            'name': 'distortion_{}'.format(i+1),
+            'parameters': parameters,
             'tdate': self.tdate,
             'validity_start': self.validity_start,
             'validity_end': self.validity_end,
             'transfo_type': typ,
         }
-        return self.get_or_create_transfo(transfo, ref_ii, ref_ri)
+        return self.get_or_create_transfo(transfo, source, target)
 
     def get_or_create_transfotree(self, node, transfos):
         transfotree = {
