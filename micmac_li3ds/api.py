@@ -10,6 +10,13 @@ class Api(object):
         self.api_url = None
         self.headers = None
         self.staging = None
+        self.unique_keys = {
+            'transfo': ['name', 'source', 'target'],
+            'transfos/type': ['name'],
+            'transfotree': ['name', 'transfos'],
+            'referential': ['name', 'sensor'],
+            'sensor': ['name'],
+        }
         
         if api_url and api_key:
             self.api_url = api_url.rstrip('/')
@@ -52,7 +59,8 @@ class Api(object):
 
     def get_object_by_id(self, typ, obj_id):
         if self.staging:
-            return self.staging[typ][obj_id]
+            objs = self.staging[typ]
+            return objs[obj_id] if obj_id < len(objs) else None
 
         url = self.api_url + '/{}s/{:d}/'.format(typ, obj_id)
         resp = requests.get(url, headers=self.headers)
@@ -69,9 +77,7 @@ class Api(object):
         if self.staging != None:
             objs = self.staging[typ]
             obj = [obj for obj in objs if obj.name == obj_name]
-            if obj:
-                obj = obj[0]
-            return obj
+            return obj[0] if obj else None
 
         url = self.api_url + '/{}s/'.format(typ)
         resp = requests.get(url, headers=self.headers)
@@ -91,9 +97,7 @@ class Api(object):
             objs = self.staging[typ]
             obj = [o for o in objs if all(
                     o[k] == v for k, v in dict_.items() if k in o)]
-            if obj:
-                obj = obj[0]
-            return obj
+            return obj[0] if obj else None
             
         url = self.api_url + '/{}s/'.format(typ)
         resp = requests.get(url, headers=self.headers)
@@ -141,8 +145,8 @@ class Api(object):
             raise RuntimeError(err)
         return sensor_referentials
 
-    def get_or_create_object(self, typ, obj, keys, log):
-        log.debug('getting or creating {} "{}"'.format(typ, obj))
+    def get_or_create_object(self, typ, obj):
+        obj = {k: v for k, v in obj.items() if v is not None}
         if 'id' in obj:
             # look up by id, raise an error upon lookup failure
             # or value mismatch for specified keys
@@ -152,16 +156,14 @@ class Api(object):
                 raise RuntimeError(err)
 
             all_keys = set(obj.keys()).intersection(got.keys())
-            for key in keys:
+            for key in all_keys:
                 if obj[key] != got[key]:
                     err = 'Error: "{}" mismatch in {} with id {:d} ' \
                           '("{}" vs "{}")' \
                           .format(key, typ, obj['id'], obj[key], got[key])
                     raise RuntimeError(err)
 
-            log.info('{} "{}" found in database with id {:d}.'
-                     .format(typ, got['name'], got['id']))
-            return got
+            return got, 'i'
 
         if 'name' not in obj:
             err = 'Error: objects should specify ' \
@@ -169,7 +171,7 @@ class Api(object):
             raise RuntimeError(err)
 
         # look up by dict, and raise an error upon mismatch
-        keys.append('name')
+        keys = self.unique_keys[typ]
         dict_ = {k: obj[k] for k in keys}
         got = self.get_object_by_dict(typ, dict_)
         if got:
@@ -182,12 +184,8 @@ class Api(object):
                           .format(key, typ, obj['name'], obj[key], got[key])
                     raise RuntimeError(err)
 
-            log.info('{} "{}" found in database by ({}) with id {:d}.'
-                     .format(typ, got['name'], ",".join(keys), got['id']))
-            return got
+            return got, '='
 
         # no successfull lookup by id or by name, create a new object
         got = self.create_object(typ, obj)
-        log.info('{} "{}" created with id {:d}.'.format(
-            typ, got['name'], got['id']))
-        return got
+        return got, '+'

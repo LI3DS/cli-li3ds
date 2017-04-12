@@ -33,11 +33,9 @@ class ImportAutocal(Command):
         parser = super().get_parser(prog_name)
         parser.add_argument(
             '--api-url', '-u',
-            required=True,
             help='the li3ds API URL (required)')
         parser.add_argument(
             '--api-key', '-k',
-            required=True,
             help='the li3ds API key (required)')
         parser.add_argument(
             '--sensor-id', '-s',
@@ -72,6 +70,8 @@ class ImportAutocal(Command):
         """
 
         self.api = api.Api(parsed_args.api_url, parsed_args.api_key)
+        if self.api.staging:
+            self.log.info("Staging mode (no api url/key provided).")
         self.sensor_id = parsed_args.sensor_id
         self.sensor_name = parsed_args.sensor_name
         self.autocal_file = parsed_args.autocal_file
