@@ -9,6 +9,7 @@ requirements = (
     'requests==2.13.0',
     'cliff==2.4.0',
     'requests==2.13.0',
+    'pytz==2017.2',
 )
 
 dev_requirements = (

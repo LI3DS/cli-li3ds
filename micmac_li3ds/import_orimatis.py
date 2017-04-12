@@ -2,6 +2,8 @@ import os
 import getpass
 import logging
 import json
+import datetime
+import pytz
 
 from cliff.command import Command
 
@@ -29,7 +31,7 @@ class ImportOrimatis(Command):
         self.transfo = {}
         self.staging = True
         self.staging_id = 0
-        self.print_indent = None
+        self.indent = None
 
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
@@ -63,7 +65,7 @@ class ImportOrimatis(Command):
             help='validity end date for transfos (optional, '
                  'default is valid until forever)')
         parser.add_argument(
-            '--print-indent', type=int,
+            '--indent', type=int,
             help='number of spaces for pretty print indenting')
         parser.add_argument(
             'orimatis_file',
@@ -87,7 +89,7 @@ class ImportOrimatis(Command):
         self.tdate = parsed_args.calibration_date
         self.validity_start = parsed_args.validity_start
         self.validity_end = parsed_args.validity_end
-        self.print_indent = parsed_args.print_indent
+        self.indent = parsed_args.indent
         if self.tdate:
             self.transfo['tdate'] = self.tdate
         if self.validity_start:
@@ -96,6 +98,10 @@ class ImportOrimatis(Command):
             self.transfo['validity_end'] = self.validity_end
 
         root = xmlutil.root(self.file, 'orientation')
+
+        self.metadata = self.get_metadata(root)
+        self.acquisition_datetime = self.get_acquisition_datetime(root)
+        self.calibration_datetime = self.get_calibration_datetime(root)
 
         sensor = self.get_or_create_camera_sensor(root)
 
@@ -113,34 +119,95 @@ class ImportOrimatis(Command):
         transfos = [pinh, dist, pose[0]]
         transfotree = self.get_or_create_transfotree(root, transfos)
 
+        metadata_dump = json.dumps(self.metadata, indent=self.indent)
+        self.log.info('[metadata] {}'.format(metadata_dump))
+
         self.log.info('[{}] Success!'.format(transfotree['id']))
+
+    def get_acquisition_datetime(self, node):
+
+        node = xmlutil.child(node, 'auxiliarydata/image_date')
+        Y = xmlutil.child_int(node, 'year')
+        m = xmlutil.child_int(node, 'month')
+        d = xmlutil.child_int(node, 'day')
+        H = xmlutil.child_int(node, 'hour')
+        M = xmlutil.child_int(node, 'minute')
+        x = xmlutil.child_float(node, 'second')
+        S = int(x)
+        s = int(1000000*(x-S))
+        time_system = xmlutil.child(node, 'time_system').text.strip()
+        if time_system != 'UTC':
+            err = 'Error: supported time_system is "UTC"'
+            raise RuntimeError(err)
+
+        return datetime.datetime(Y, m, d, H, M, S, s, pytz.UTC)
+
+    def get_calibration_datetime(self, node):
+        tag = 'geometry/intrinseque/sensor/calibration_date'
+        D, M, Y = xmlutil.child(node, tag).text.strip().split('-')
+        return datetime.date(int(Y), int(M), int(D))
+
+    def get_metadata(self, node):
+        version = xmlutil.child(node, 'version').text.strip()
+        if version != '1.0':
+            err = 'Error: orimatis version {} is not supported' \
+                .format(version)
+            raise RuntimeError(err)
+
+        image = xmlutil.child(node, 'auxiliarydata/image_name').text.strip()
+        node = xmlutil.child(node, 'auxiliarydata/stereopolis')
+
+        date = xmlutil.child_int(node, 'date')
+        Y = 2000 + int(date/10000)
+        m = int(date/100) % 100
+        d = date % 100
+        date = datetime.date(Y, m, d)
+
+        metadata = {
+            'image': image,
+            'project': xmlutil.child(node, 'chantier').text.strip(),
+            'date': date.isoformat(),
+            'session': xmlutil.child_int(node, 'session'),
+            'section': xmlutil.child_int(node, 'section'),
+            'numero': xmlutil.child_int(node, 'numero'),
+            'position': xmlutil.child(node, 'position').text.strip(),
+            'flatfield': xmlutil.child(node, 'flatfield_name').text.strip(),
+        }
+        return metadata
 
     def get_or_create_camera_sensor(self, node):
         """
         Create a camera sensor
         """
+        node = xmlutil.child(node, 'geometry/intrinseque/sensor')
+        pixel_size = xmlutil.child_float(node, 'pixel_size')
+        image_size = xmlutil.child_floats(node, 'image_size/[width,height]')
+        name = xmlutil.child(node, 'name').text.strip()
+        serial = xmlutil.child(node, 'serial_number').text.strip()
 
-        sensor_name = self.sensor_name or self.file_basename
-
-        # create the sensor
         description = 'camera sensor, imported from {}'.format(
                 self.file_basename)
         sensor = {
-            'name': sensor_name,
+            'name': name,
             'description': description,
             'type': 'camera',
             'brand': '',
             'model': '',
-            'serial_number': '',
-            'specifications': {},
+            'serial_number': serial,
+            'specifications': {
+                'pixel_size': pixel_size,
+                'image_size': image_size,
+                'flatfield': self.metadata['flatfield'],
+            },
         }
 
         return self.get_or_create('sensor', sensor, [])
 
     def get_or_create_wo_referential(self, node, sensor):
 
-        systeme = xmlutil.child(node, 'geometry/extrinseque/systeme').text
-        grid_alti = xmlutil.child(node, 'geometry/extrinseque/grid_alti').text
+        node = xmlutil.child(node, 'geometry/extrinseque')
+        systeme = xmlutil.child(node, 'systeme').text.strip()
+        grid_alti = xmlutil.child(node, 'grid_alti').text.strip()
 
         srid = 0
         if systeme is 'Lambert93' and grid_alti is 'RAF09':
@@ -151,7 +218,7 @@ class ImportOrimatis(Command):
                           systeme, grid_alti, self.file_basename)
         referential = {
             'description': description,
-            'name': 'world',
+            'name': systeme,
             'root': False,
             'sensor': sensor['id'],
             'srid': srid,
@@ -165,7 +232,7 @@ class ImportOrimatis(Command):
                       'imported from {}'.format(self.file_basename)
         referential = {
             'description': description,
-            'name': 'rawImage',
+            'name': '{}/raw'.format(sensor['name']),
             'root': True,
             'sensor': sensor['id'],
             'srid': 0,
@@ -179,7 +246,7 @@ class ImportOrimatis(Command):
                       'imported from {}'.format(self.file_basename)
         referential = {
             'description': description,
-            'name': 'idealImage',
+            'name': '{}/ideal'.format(sensor['name']),
             'root': False,
             'sensor': sensor['id'],
             'srid': 0,
@@ -194,7 +261,7 @@ class ImportOrimatis(Command):
                       'imported from {}'.format(self.file_basename)
         referential = {
             'description': description,
-            'name': 'euclidean',
+            'name': self.metadata['position'],
             'root': False,
             'sensor': sensor['id'],
             'srid': 0,
@@ -204,14 +271,13 @@ class ImportOrimatis(Command):
     def get_or_create_pinh_transform(self, node, ref_eu, ref_ii):
         node = xmlutil.child(node, 'geometry/intrinseque/sensor')
 
-        # image_size  = xmlutil.child_floats(node, 'image_size/[width,height]')
-
         transfo = {
             'name': 'projection',
             'parameters': {
                 'focal': xmlutil.child_float(node, 'ppa/focale'),
                 'ppa': xmlutil.child_floats(node, 'ppa/[c,l]'),
             },
+            'tdate': self.calibration_datetime.isoformat(),
             'transfo_type': 'pinhole',
         }
         return self.get_or_create_transfo(transfo, ref_eu, ref_ii)
@@ -225,6 +291,7 @@ class ImportOrimatis(Command):
                 'pps': xmlutil.child_floats(node, 'distortion/pps/[c,l]'),
                 'coef': xmlutil.child_floats(node, 'distortion/[r3,r5,r7]'),
             },
+            'tdate': self.calibration_datetime.isoformat(),
             'transfo_type': 'distortionr357',
         }
         return self.get_or_create_transfo(transfo, ref_ii, ref_ri)
@@ -246,6 +313,8 @@ class ImportOrimatis(Command):
                 'name': 'pose_quat',
                 'parameters': {'quat': quat, 'vec3': p0},
                 'transfo_type': 'affine_quat',
+                'validity_start': self.acquisition_datetime.isoformat(),
+                'validity_end': self.acquisition_datetime.isoformat(),
             }
             transfo = self.get_or_create_transfo(transfo, source, target)
             transfos.append(transfo)
@@ -267,6 +336,8 @@ class ImportOrimatis(Command):
                 'name': 'pose_mat',
                 'parameters': {'mat4x3': matrix},
                 'transfo_type': 'affine_mat',
+                'validity_start': self.acquisition_datetime.isoformat(),
+                'validity_end': self.acquisition_datetime.isoformat(),
             }
             transfo = self.get_or_create_transfo(transfo, source, target)
             transfos.append(transfo)
@@ -290,7 +361,7 @@ class ImportOrimatis(Command):
         if self.api:
             return self.api.get_or_create_object(typ, obj, keys, self.log)
         else:
-            strobj = json.dumps(obj, indent=self.print_indent)
+            strobj = json.dumps(obj, indent=self.indent)
             self.log.info('[{}:{}] {}'.format(typ, self.staging_id, strobj))
             if 'id' not in obj:
                 obj['id'] = self.staging_id
