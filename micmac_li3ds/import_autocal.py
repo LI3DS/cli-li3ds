@@ -1,6 +1,7 @@
 import os
 import getpass
 import logging
+import json
 
 from cliff.command import Command
 
@@ -24,19 +25,19 @@ class ImportAutocal(Command):
         self.tdate = None
         self.validity_start = None
         self.validity_end = None
-        self.autocal_file = None
-        self.autocal_file_basename = None
-        self.metadata = None
+        self.filename = None
+        self.basename = None
+        self.indent = None
 
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
         parser = super().get_parser(prog_name)
         parser.add_argument(
             '--api-url', '-u',
-            help='the li3ds API URL (required)')
+            help='the li3ds API URL (optional)')
         parser.add_argument(
             '--api-key', '-k',
-            help='the li3ds API key (required)')
+            help='the li3ds API key (optional)')
         parser.add_argument(
             '--sensor-id', '-s',
             type=int,
@@ -60,7 +61,10 @@ class ImportAutocal(Command):
             help='validity end date for transfos (optional, '
                  'default is valid until forever)')
         parser.add_argument(
-            'autocal_file',
+            '--indent', type=int,
+            help='number of spaces for pretty print indenting')
+        parser.add_argument(
+            'filename',
             help='the autocal file')
         return parser
 
@@ -70,236 +74,155 @@ class ImportAutocal(Command):
         """
 
         self.api = api.Api(parsed_args.api_url, parsed_args.api_key)
-        if self.api.staging:
-            self.log.info("Staging mode (no api url/key provided).")
         self.sensor_id = parsed_args.sensor_id
         self.sensor_name = parsed_args.sensor_name
-        self.autocal_file = parsed_args.autocal_file
-        self.autocal_file_basename = os.path.basename(self.autocal_file)
+        self.filename = parsed_args.filename
+        self.basename = os.path.basename(self.filename)
         self.owner = parsed_args.owner or getpass.getuser()
         self.tdate = parsed_args.calibration_date
         self.validity_start = parsed_args.validity_start
         self.validity_end = parsed_args.validity_end
+        self.indent = parsed_args.indent
+        if self.api.staging:
+            self.log.info("Staging mode (no api url/key provided).")
 
-        root = xmlutil.root(self.autocal_file, 'ExportAPERO')
-
+        root = xmlutil.root(self.filename, 'ExportAPERO')
         node = xmlutil.child(root, 'CalibrationInternConique')
-        # sz_im_node = xmlutil.child(node, 'SzIm')
 
-        if not self.sensor_id and not self.sensor_name:
-            # neither sensor_id nor sensor_name specified on the command
-            # line, so create a camera sensor
-            sensor, ref_ri, ref_ii, ref_eu = self.create_camera_sensor()
-        elif self.sensor_id:
-            # look up sensor whose id is sensor_id, and raise an error
-            # if there's no sensor with that id
-            sensor = self.api.get_object_by_id('sensor', self.sensor_id)
-            if not sensor:
-                err = 'Error: sensor with id {:d} not in db'.format(
-                        self.sensor_id)
-                raise RuntimeError(err)
-            if sensor['type'] != 'camera':
-                err = 'Error: sensor with id {:d} not of type "camera"'.format(
-                      self.sensor_id)
-                raise RuntimeError(err)
-            ref_ri, ref_ii, ref_eu = self.api.get_sensor_referentials(
-                    self.sensor_id)
-        else:
-            # we have a sensor name, look up sensor with this name, and
-            # create a sensor with that name if there's no such sensor
-            # in the database
-            assert(self.sensor_name)
-            sensor = self.api.get_object_by_name('sensor', self.sensor_name)
-            if sensor:
-                if sensor['type'] != 'camera':
-                    err = 'Error: sensor with id {:d} not of type ' \
-                          '"camera"'.format(sensor['id'])
-                    raise RuntimeError(err)
-                self.log.info('Sensor "{}" found in database.'
-                              .format(self.sensor_name))
-                ref_ri, ref_ii, ref_eu = \
-                    self.api.get_sensor_referentials(sensor['id'])
-            else:
-                sensor, ref_ri, ref_ii, ref_eu = self.create_camera_sensor()
+        sensor = self.get_or_create_camera_sensor(node)
 
-        # create the "pinhole" and "distortion" transforms
-        pinhole = self.create_pinhole_transform(node, ref_eu, ref_ii)
-        distortion = self.create_distortion_transform(node, ref_ii, ref_ri)
+        # get or create euclidean, idealImage and rawImage referentials
+        ref_eu = self.get_or_create_eu_referential(node, sensor)
+        ref_ii = self.get_or_create_ii_referential(node, sensor)
+        ref_ri = self.get_or_create_ri_referential(node, sensor)
 
-        # create the transfo tree
-        transfotree = {
-            'isdefault': True,
-            'name': self.autocal_file_basename,
-            'owner': self.owner,
-            'sensor_connections': False,
-            'transfos': [pinhole['id'], distortion['id']],
-        }
-        transfotree = self.api.create_object('transfotree', transfotree)
-        self.log.info('Transfo tree "{}" created.'.format(
-            transfotree['name']))
+        # get or create pinhole and distortion transforms
+        pinh = self.get_or_create_pinh_transform(node, ref_eu, ref_ii)
+        dist = self.get_or_create_dist_transform(node, ref_ii, ref_ri)
+
+        transfotree = self.get_or_create_transfotree(node, [pinh, dist])
 
         self.log.info('Success!')
 
-    def create_camera_sensor(self):
-        """
-        Create a camera sensor, and three referentials.
-        """
-
-        sensor_name = self.sensor_name or self.autocal_file_basename
-
-        ret = []
-
-        # create the sensor
-        description = 'camera sensor, imported from {}'.format(
-                self.autocal_file_basename)
+    def get_or_create_camera_sensor(self, node):
+        image_size = xmlutil.child_floats_split(node,'SzIm')
+        description = 'camera sensor, imported from "{}"'.format(
+                self.basename)
         sensor = {
-            'name': sensor_name,
-            'brand': '',
+            'id': self.sensor_id,
+            'name': self.sensor_name or self.basename,
             'description': description,
+            'type': 'camera',
+            'brand': '',
             'model': '',
             'serial_number': '',
-            'specifications': {},
-            'type': 'camera',
+            'specifications': {
+                'image_size': image_size,
+            },
         }
-        sensor = self.api.create_object('sensor', sensor)
-        sensor_id = sensor['id']
-        self.log.info('Sensor "{}" created.'.format(sensor_name))
+        return self.get_or_create('sensor', sensor)
 
-        ret.append(sensor)
-
-        # create the rawImage referential
-        description = 'origin: top left corner or top left pixel, ' \
+    def get_or_create_ri_referential(self, node, sensor):
+        description = 'origin: top left corner of top left pixel, ' \
                       '+XY: raster pixel coordinates, ' \
                       '+Z: inverse depth (measured along the optical axis), ' \
-                      'imported from {}'.format(
-                          sensor_id, self.autocal_file_basename)
+                      'imported from "{}"'.format(self.basename)
         referential = {
             'description': description,
             'name': 'rawImage',
             'root': True,
-            'sensor': sensor_id,
+            'sensor': sensor['id'],
             'srid': 0,
         }
-        referential = self.api.create_object('referential', referential)
-        self.log.info('Referential "{}" created.'.format(referential['name']))
+        return self.get_or_create('referential', referential)
 
-        ret.append(referential)
-
-        # create the idealImage referential
-        description = 'origin: top left corner or top left pixel, ' \
+    def get_or_create_ii_referential(self, node, sensor):
+        description = 'origin: top left corner of top left pixel, ' \
                       '+XY: raster pixel coordinates, ' \
                       '+Z: inverse depth (measured along the optical axis), ' \
-                      'imported from {}'.format(
-                          sensor_id, self.autocal_file_basename)
+                      'imported from "{}"'.format(self.basename)
         referential = {
             'description': description,
             'name': 'idealImage',
             'root': False,
-            'sensor': sensor_id,
+            'sensor': sensor['id'],
             'srid': 0,
         }
-        referential = self.api.create_object('referential', referential)
-        self.log.info('Referential "{}" created.'.format(referential['name']))
+        return self.get_or_create('referential', referential)
 
-        ret.append(referential)
-
-        # create the euclidean referential
+    def get_or_create_eu_referential(self, node, sensor):
         description = 'origin: camera position, ' \
                       '+X: right of the camera, ' \
                       '+Y: bottom of the camera, ' \
                       '+Z: optical axis (in front of the camera), ' \
-                      'imported from {}'.format(
-                          sensor_id, self.autocal_file_basename)
+                      'imported from "{}"'.format(self.basename)
         referential = {
             'description': description,
             'name': 'euclidean',
             'root': False,
-            'sensor': sensor_id,
+            'sensor': sensor['id'],
             'srid': 0,
         }
-        referential = self.api.create_object('referential', referential)
-        self.log.info('Referential "{}" created.'.format(referential['name']))
+        return self.get_or_create('referential', referential)
 
-        ret.append(referential)
-
-        return ret
-
-    def create_pinhole_transform(self, node, ref_eu, ref_ii):
-
-        # retrieve the "pinhole" transfo type
-        transfo_type = self.api.get_object_by_name(
-            'transfos/type', 'pinhole')
-        if not transfo_type:
-            err = 'Error: no transfo type "pinhole" available.'
-            raise RuntimeError(err)
-
-        pp_node = xmlutil.child(node, 'PP')
-        try:
-            ppa = list(map(float, pp_node.text.split()))
-        except ValueError:
-            err = 'Error: PP tag ' \
-                  'includes non-parseable numbers in autocal file'
-            raise RuntimeError(err)
-
-        focal = xmlutil.child_float(node, 'F')
-
-        description = 'projective transformation, imported from {}'.format(
-                      self.autocal_file_basename)
-
+    def get_or_create_pinh_transform(self, node, ref_eu, ref_ii):
         transfo = {
             'name': 'projection',
-            'description': description,
             'parameters': {
-                'focal': focal,
-                'ppa': ppa,
+                'focal': xmlutil.child_float(node, 'F'),
+                'ppa': xmlutil.child_floats_split(node, 'PP'),
             },
-            'source': ref_eu['id'],
-            'target': ref_ii['id'],
-            'transfo_type': transfo_type['id'],
+            'tdate': self.tdate,
+            'validity_start': self.validity_start,
+            'validity_end': self.validity_end,
+            'transfo_type': 'pinhole',
         }
-        if self.tdate:
-            transfo['tdate'] = self.tdate
-        if self.validity_start:
-            transfo['validity_start'] = self.validity_start
-        if self.validity_end:
-            transfo['validity_end'] = self.validity_end
-        transfo = self.api.create_object('transfo', transfo)
-        self.log.info('Transfo "{}" created.'.format(transfo['name']))
+        return self.get_or_create_transfo(transfo, ref_eu, ref_ii)
 
-        return transfo
-
-    def create_distortion_transform(self, node, ref_ii, ref_ri):
-
+    def get_or_create_dist_transform(self, node, ref_ii, ref_ri):
         calib_distortion_node = xmlutil.child(node, 'CalibDistortion')
         mod_unif_node = xmlutil.child(calib_distortion_node, 'ModUnif')
         typ, states, params = distortion.read_info(mod_unif_node)
 
-        # retrieve the transfo type
-        transfo_type = self.api.get_object_by_name('transfos/type', typ)
-        if not transfo_type:
-            err = 'Error: no transfo type "{}" available.'.format(typ)
-            raise RuntimeError(err)
-
-        description = 'distortion transformation, imported from {}'.format(
-                      self.autocal_file_basename)
         transfo = {
             'name': 'distortion',
-            'description': description,
             'parameters': {
                 'states': states,
-                'params': params
+                'params': params,
             },
-            'source': ref_ii['id'],
-            'target': ref_ri['id'],
-            'transfo_type': transfo_type['id'],
+            'tdate': self.tdate,
+            'validity_start': self.validity_start,
+            'validity_end': self.validity_end,
+            'transfo_type': typ,
         }
-        if self.tdate:
-            transfo['tdate'] = self.tdate
-        if self.validity_start:
-            transfo['validity_start'] = self.validity_start
-        if self.validity_end:
-            transfo['validity_end'] = self.validity_end
-        transfo = self.api.create_object('transfo', transfo)
-        self.log.info('Transfo "{}" created.'.format(transfo['name']))
+        return self.get_or_create_transfo(transfo, ref_ii, ref_ri)
 
-        return transfo
+    def get_or_create_transfotree(self, node, transfos):
+        transfotree = {
+            'name': self.basename,
+            'owner': self.owner,
+            'isdefault': True,
+            'sensor_connections': False,
+            'transfos': [t['id'] for t in transfos],
+        }
+        return self.get_or_create('transfotree', transfotree)
+
+    def get_or_create(self, typ, obj):
+        obj, info = self.api.get_or_create_object(typ, obj)
+        self.log.info('{} {}({}) "{}"'.format(info, typ, obj['id'], obj['name']))
+        self.log.debug(json.dumps(obj, indent=self.indent))
+        return obj
+
+    def get_or_create_transfo(self, transfo, source, target):
+        transfo_type = {
+            'name': transfo['transfo_type'],
+            'func_signature': list(transfo['parameters'].keys()),
+        }
+        transfo_type = self.get_or_create('transfos/type', transfo_type)
+        transfo['transfo_type'] = transfo_type['id']
+        transfo['source'] = source['id']
+        transfo['target'] = target['id']
+        transfo['description'] = '"{}" transformation, imported from "{}"' \
+            .format(transfo_type['name'], self.basename)
+        return self.get_or_create('transfo', transfo)
+
