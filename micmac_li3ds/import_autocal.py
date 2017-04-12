@@ -16,7 +16,7 @@ class ImportAutocal(Command):
     log = logging.getLogger(__name__)
 
     def __init__(self, *args, **kwargs):
-        super(ImportAutocal, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.api = None
         self.sensor_id = None
         self.sensor_name = None
@@ -29,7 +29,7 @@ class ImportAutocal(Command):
 
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
-        parser = super(ImportAutocal, self).get_parser(prog_name)
+        parser = super().get_parser(prog_name)
         parser.add_argument(
             '--api-url', '-u',
             required=True,

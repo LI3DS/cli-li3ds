@@ -18,7 +18,7 @@ class ImportOrimatis(Command):
     log = logging.getLogger(__name__)
 
     def __init__(self, *args, **kwargs):
-        super(ImportOrimatis, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.api = None
         self.sensor_id = None
         self.sensor_name = None
@@ -35,7 +35,7 @@ class ImportOrimatis(Command):
 
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
-        parser = super(ImportOrimatis, self).get_parser(prog_name)
+        parser = super().get_parser(prog_name)
         parser.add_argument(
             '--api-url', '-u',
             help='the li3ds API URL (optional)')
@@ -371,7 +371,7 @@ class ImportOrimatis(Command):
     def get_or_create_transfo(self, obj, source, target):
         transfo_type = {
             'name': obj['transfo_type'],
-            'func_signature': obj['parameters'].keys(),
+            'func_signature': list(obj['parameters'].keys()),
         }
         transfo_type = self.get_or_create('transfos/type', transfo_type, [])
         obj['transfo_type'] = transfo_type['id']
