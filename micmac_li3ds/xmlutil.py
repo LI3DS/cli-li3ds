@@ -31,7 +31,7 @@ def child_float(parent, name):
     try:
         return float(node.text)
     except ValueError:
-        err = 'Error: {} tag ' \
+        err = 'Error: "{}" tag ' \
           'includes non-parseable numbers in XML'.format(name)
         raise RuntimeError(err)
 
@@ -41,7 +41,7 @@ def child_int(parent, name):
     try:
         return int(node.text)
     except ValueError:
-        err = 'Error: {} tag ' \
+        err = 'Error: "{}" tag ' \
           'includes non-parseable numbers in XML'.format(name)
         raise RuntimeError(err)
 
@@ -51,7 +51,7 @@ def child_bool(parent, name):
     try:
         return bool(node.text)
     except ValueError:
-        err = 'Error: {} tag ' \
+        err = 'Error: "{}" tag ' \
           'includes non-parseable boolean in XML'.format(name)
         raise RuntimeError(err)
 
@@ -60,7 +60,7 @@ def child_floats(parent, name):
     beg = name.find('[')
     end = name.rfind(']')
     if beg is -1 or end is -1:
-        err = 'Error: {} has no []-enclosed tag list'.format(name)
+        err = 'Error: "{}" tag has no []-enclosed tag list'.format(name)
         raise RuntimeError(err)
     prefix = name[0:beg]
     names = name[beg+1:end].split(',')
@@ -73,6 +73,6 @@ def child_floats_split(parent, name):
     try:
         return [float(v) for v in node.text.split()]
     except ValueError:
-        err = 'Error: {} tag ' \
+        err = 'Error: "{}" tag ' \
           'includes non-parseable numbers in XML'.format(name)
         raise RuntimeError(err)

@@ -18,22 +18,16 @@ class Api(object):
             'sensor': ['name'],
         }
 
-        if api_url and api_key:
+        if api_url:
+            if not api_key:
+                err = 'Error: no api key provided'
+                raise ValueError(err)
             self.api_url = api_url.rstrip('/')
             self.headers = {
                 'Accept': 'application/json',
                 'X-API-KEY': api_key
                 }
-
         else:
-            if api_key:
-                err = 'Error: no api url provided'
-                raise ValueError(err)
-
-            if api_url:
-                err = 'Error: no api key provided'
-                raise ValueError(err)
-
             self.staging = {
                 'transfo': [],
                 'transfos/type': [],
@@ -74,7 +68,7 @@ class Api(object):
         raise RuntimeError(err)
 
     def get_object_by_name(self, typ, obj_name):
-        if self.staging is not None:
+        if self.staging:
             objs = self.staging[typ]
             obj = [obj for obj in objs if obj.name == obj_name]
             return obj[0] if obj else None
