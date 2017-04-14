@@ -88,14 +88,22 @@ class ImportAutocal(Command):
 
         root = xmlutil.root(self.filename, 'ExportAPERO')
         node = xmlutil.child(root, 'CalibrationInternConique')
-        assert(xmlutil.child(node, 'KnownConv').text.strip()
-               == 'eConvApero_DistM2C')
+        xmlutil.child_check(node, 'KnownConv', 'eConvApero_DistM2C')
 
         sensor = self.get_or_create_camera_sensor(node)
-
         target = self.get_or_create_raw_image_referential(node, sensor)
-        disto_nodes = reversed(xmlutil.children(node, 'CalibDistortion'))
         transfos = []
+
+        orintglob_node = node.find('OrIntGlob')
+        if orintglob_node:
+            source = self.get_or_create_orintglob_referential(
+                orintglob_node, sensor)
+            distortion = self.get_or_create_orintglob_transform(
+                orintglob_node, source, target)
+            target = source
+            transfos.append(distortion)
+
+        disto_nodes = reversed(xmlutil.children(node, 'CalibDistortion'))
         for i, disto_node in enumerate(disto_nodes):
             source = self.get_or_create_distortion_referential(
                 disto_node, sensor, i)
@@ -144,6 +152,20 @@ class ImportAutocal(Command):
         }
         return self.get_or_create('referential', referential)
 
+    def get_or_create_orintglob_referential(self, node, sensor):
+        description = 'origin: top left corner of top left pixel, ' \
+                      '+XY: raster pixel coordinates, ' \
+                      '+Z: inverse depth (measured along the optical axis), ' \
+                      'imported from "{}"'.format(self.basename)
+        referential = {
+            'description': description,
+            'name': 'orIntImage',
+            'root': False,
+            'sensor': sensor['id'],
+            'srid': 0,
+        }
+        return self.get_or_create('referential', referential)
+
     def get_or_create_distortion_referential(self, node, sensor, i):
         description = 'origin: top left corner of top left pixel, ' \
                       '+XY: raster pixel coordinates, ' \
@@ -184,6 +206,23 @@ class ImportAutocal(Command):
             'validity_start': self.validity_start,
             'validity_end': self.validity_end,
             'transfo_type': 'pinhole',
+        }
+        return self.get_or_create_transfo(transfo, source, target)
+
+    def get_or_create_orintglob_transform(self, node, source, target):
+        if xmlutil.child_bool(node, 'C2M'):
+            source, target = target, source
+        affinity = xmlutil.child(node, 'Affinite')
+        p = xmlutil.child_floats_split(affinity, 'I00')
+        u = xmlutil.child_floats_split(affinity, 'V10')
+        v = xmlutil.child_floats_split(affinity, 'V01')
+        transfo = {
+            'name': 'affinity',
+            'parameters': {'matrix': [u[0], v[0], p[0], u[1], v[1], p[1]]},
+            'tdate': self.tdate,
+            'validity_start': self.validity_start,
+            'validity_end': self.validity_end,
+            'transfo_type': 'affine_3_2',
         }
         return self.get_or_create_transfo(transfo, source, target)
 

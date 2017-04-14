@@ -282,13 +282,13 @@ class ImportOrimatis(Command):
         transfo = {
             'name': 'distortion',
             'parameters': {
-                'pps': xmlutil.child_floats(node, 'distortion/pps/[c,l]'),
-                'coef': xmlutil.child_floats(node, 'distortion/[r3,r5,r7]'),
+                'C': xmlutil.child_floats(node, 'distortion/pps/[c,l]'),
+                'R': xmlutil.child_floats(node, 'distortion/[r3,r5,r7]'),
             },
             'tdate': self.calibration_datetime.isoformat(),
             'validity_start': self.validity_start,
             'validity_end': self.validity_end,
-            'transfo_type': 'polyradial7',
+            'transfo_type': 'poly_radial_7',
         }
         return self.get_or_create_transfo(transfo, ref_ii, ref_ri)
 
