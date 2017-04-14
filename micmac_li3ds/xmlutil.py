@@ -11,9 +11,9 @@ def root(filename, name):
     return root_node
 
 
-def child(parent, name):
+def child(parent, name, default=None):
     child_node = parent.find(name)
-    if child_node is None:
+    if default is None and child_node is None:
         err = 'Error: no tag "{}" in XML tag "{}"'.format(name, parent.tag)
         raise RuntimeError(err)
     return child_node
@@ -27,8 +27,18 @@ def children(parent, name):
     return child_nodes
 
 
-def child_float(parent, name):
+def child_check(parent, name, value):
     node = child(parent, name)
+    if node.text.strip() != value:
+        err = 'Error: "{}" tag does not have the expected value "{}" ' \
+          'in XML tag "{}"'.format(name, value, parent.tag)
+        raise RuntimeError(err)
+
+
+def child_float(parent, name, default=None):
+    node = child(parent, name, default)
+    if node is None:
+        return default
     try:
         return float(node.text)
     except ValueError:
@@ -47,8 +57,10 @@ def children_float(parent, name):
         raise RuntimeError(err)
 
 
-def child_int(parent, name):
-    node = child(parent, name)
+def child_int(parent, name, default=None):
+    node = child(parent, name, default)
+    if node is None:
+        return default
     try:
         return int(node.text)
     except ValueError:
@@ -57,8 +69,10 @@ def child_int(parent, name):
         raise RuntimeError(err)
 
 
-def child_bool(parent, name):
-    node = child(parent, name)
+def child_bool(parent, name, default=None):
+    node = child(parent, name, default)
+    if node is None:
+        return default
     try:
         return bool(node.text)
     except ValueError:
@@ -67,7 +81,7 @@ def child_bool(parent, name):
         raise RuntimeError(err)
 
 
-def child_floats(parent, name):
+def child_floats(parent, name, default=None):
     beg = name.find('[')
     end = name.rfind(']')
     if beg is -1 or end is -1:
@@ -76,7 +90,7 @@ def child_floats(parent, name):
     prefix = name[0:beg]
     names = name[beg+1:end].split(',')
     suffix = name[end+1:len(name)]
-    return [child_float(parent, prefix+n+suffix) for n in names]
+    return [child_float(parent, prefix+n+suffix, default) for n in names]
 
 
 def child_floats_split(parent, name):
