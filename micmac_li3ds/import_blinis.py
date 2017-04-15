@@ -1,7 +1,6 @@
 import os
 import getpass
 import logging
-import json
 
 from cliff.command import Command
 
@@ -73,7 +72,7 @@ class ImportBlinis(Command):
         """
         Create or update a sensor group.
         """
-        self.api = api.Api(parsed_args.api_url, parsed_args.api_key)
+
         self.sensor_id = parsed_args.sensor_id
         self.sensor_name = parsed_args.sensor_name
         self.filename = parsed_args.filename
@@ -83,6 +82,8 @@ class ImportBlinis(Command):
         self.validity_start = parsed_args.validity_start
         self.validity_end = parsed_args.validity_end
         self.indent = parsed_args.indent
+        self.api = api.Api(
+            parsed_args.api_url, parsed_args.api_key, self.log, self.indent)
         if self.api.staging:
             self.log.info("Staging mode (no api url/key provided).")
 
@@ -116,7 +117,7 @@ class ImportBlinis(Command):
             'specifications': {},
             'type': 'group',
         }
-        return self.get_or_create('sensor', sensor)
+        return self.api.get_or_create_log('sensor', sensor)
 
     def get_or_create_base_referential(self, node, sensor):
         description = 'base referential for sensor group {:d}, ' \
@@ -128,7 +129,7 @@ class ImportBlinis(Command):
             'sensor': sensor['id'],
             'srid': 0,
         }
-        return self.get_or_create('referential', referential)
+        return self.api.get_or_create_log('referential', referential)
 
     def get_or_create_referential(self, node, sensor):
         description = 'referential for sensor group {:d}, ' \
@@ -141,7 +142,7 @@ class ImportBlinis(Command):
             'sensor': sensor['id'],
             'srid': 0,
         }
-        return self.get_or_create('referential', referential)
+        return self.api.get_or_create_log('referential', referential)
 
     def get_or_create_transform(self, node, source, target):
         matrix = []
@@ -150,15 +151,18 @@ class ImportBlinis(Command):
             matrix.extend(xmlutil.child_floats_split(node, l))
             matrix.append(p[i])
 
+        type_ = 'affine_mat'
+        description = '"{}" transformation, imported from "{}"' \
+            .format(type_, self.basename)
         transfo = {
             'name': target['name'],
+            'description': description,
             'parameters': {'mat4x3': matrix},
-            'transfo_type': 'affine_mat',
             'tdate': self.tdate,
             'validity_start': self.validity_start,
             'validity_end': self.validity_end,
         }
-        return self.get_or_create_transfo(transfo, source, target)
+        return self.api.get_or_create_transfo(transfo, type_, source, target)
 
     def get_or_create_transfotree(self, node, transfos):
         transfotree = {
@@ -168,24 +172,4 @@ class ImportBlinis(Command):
             'sensor_connections': False,
             'transfos': [t['id'] for t in transfos],
         }
-        return self.get_or_create('transfotree', transfotree)
-
-    def get_or_create(self, typ, obj):
-        obj, code = self.api.get_or_create_object(typ, obj)
-        info = '{} {}({}) "{}"'.format(code, typ, obj['id'], obj['name'])
-        self.log.info(info)
-        self.log.debug(json.dumps(obj, indent=self.indent))
-        return obj
-
-    def get_or_create_transfo(self, transfo, source, target):
-        transfo_type = {
-            'name': transfo['transfo_type'],
-            'func_signature': list(transfo['parameters'].keys()),
-        }
-        transfo_type = self.get_or_create('transfos/type', transfo_type)
-        transfo['transfo_type'] = transfo_type['id']
-        transfo['source'] = source['id']
-        transfo['target'] = target['id']
-        transfo['description'] = '"{}" transformation, imported from "{}"' \
-            .format(transfo_type['name'], self.basename)
-        return self.get_or_create('transfo', transfo)
+        return self.api.get_or_create_log('transfotree', transfotree)

@@ -1,7 +1,6 @@
 import os
 import getpass
 import logging
-import json
 
 from cliff.command import Command
 
@@ -73,7 +72,6 @@ class ImportAutocal(Command):
         Create or update a camera sensor.
         """
 
-        self.api = api.Api(parsed_args.api_url, parsed_args.api_key)
         self.sensor_id = parsed_args.sensor_id
         self.sensor_name = parsed_args.sensor_name
         self.filename = parsed_args.filename
@@ -83,6 +81,8 @@ class ImportAutocal(Command):
         self.validity_start = parsed_args.validity_start
         self.validity_end = parsed_args.validity_end
         self.indent = parsed_args.indent
+        self.api = api.Api(
+            parsed_args.api_url, parsed_args.api_key, self.log, self.indent)
         if self.api.staging:
             self.log.info("Staging mode (no api url/key provided).")
 
@@ -136,7 +136,7 @@ class ImportAutocal(Command):
                 'image_size': image_size,
             },
         }
-        return self.get_or_create('sensor', sensor)
+        return self.api.get_or_create_log('sensor', sensor)
 
     def get_or_create_raw_image_referential(self, node, sensor):
         description = 'origin: top left corner of top left pixel, ' \
@@ -150,7 +150,7 @@ class ImportAutocal(Command):
             'sensor': sensor['id'],
             'srid': 0,
         }
-        return self.get_or_create('referential', referential)
+        return self.api.get_or_create_log('referential', referential)
 
     def get_or_create_orintglob_referential(self, node, sensor):
         description = 'origin: top left corner of top left pixel, ' \
@@ -164,7 +164,7 @@ class ImportAutocal(Command):
             'sensor': sensor['id'],
             'srid': 0,
         }
-        return self.get_or_create('referential', referential)
+        return self.api.get_or_create_log('referential', referential)
 
     def get_or_create_distortion_referential(self, node, sensor, i):
         description = 'origin: top left corner of top left pixel, ' \
@@ -178,7 +178,7 @@ class ImportAutocal(Command):
             'sensor': sensor['id'],
             'srid': 0,
         }
-        return self.get_or_create('referential', referential)
+        return self.api.get_or_create_log('referential', referential)
 
     def get_or_create_euclidean_referential(self, node, sensor):
         description = 'origin: camera position, ' \
@@ -193,11 +193,15 @@ class ImportAutocal(Command):
             'sensor': sensor['id'],
             'srid': 0,
         }
-        return self.get_or_create('referential', referential)
+        return self.api.get_or_create_log('referential', referential)
 
     def get_or_create_pinhole_transform(self, node, source, target):
+        type_ = 'pinhole'
+        description = '"{}" transformation, imported from "{}"' \
+            .format(type_, self.basename)
         transfo = {
             'name': 'projection',
+            'description': description,
             'parameters': {
                 'focal': xmlutil.child_float(node, 'F'),
                 'ppa': xmlutil.child_floats_split(node, 'PP'),
@@ -205,9 +209,8 @@ class ImportAutocal(Command):
             'tdate': self.tdate,
             'validity_start': self.validity_start,
             'validity_end': self.validity_end,
-            'transfo_type': 'pinhole',
         }
-        return self.get_or_create_transfo(transfo, source, target)
+        return self.api.get_or_create_transfo(transfo, type_, source, target)
 
     def get_or_create_orintglob_transform(self, node, source, target):
         if xmlutil.child_bool(node, 'C2M'):
@@ -216,28 +219,33 @@ class ImportAutocal(Command):
         p = xmlutil.child_floats_split(affinity, 'I00')
         u = xmlutil.child_floats_split(affinity, 'V10')
         v = xmlutil.child_floats_split(affinity, 'V01')
+        type_ = 'affine_3_2'
+        description = '"{}" transformation, imported from "{}"' \
+            .format(type_, self.basename)
         transfo = {
             'name': 'affinity',
+            'description': description,
             'parameters': {'matrix': [u[0], v[0], p[0], u[1], v[1], p[1]]},
             'tdate': self.tdate,
             'validity_start': self.validity_start,
             'validity_end': self.validity_end,
-            'transfo_type': 'affine_3_2',
         }
-        return self.get_or_create_transfo(transfo, source, target)
+        return self.api.get_or_create_transfo(transfo, type_, source, target)
 
     def get_or_create_distortion_transform(self, node, source, target, i):
-        typ, parameters = distortion.read_info(node)
+        type_, parameters = distortion.read_info(node)
 
+        description = '"{}" transformation, imported from "{}"' \
+            .format(type_, self.basename)
         transfo = {
             'name': 'distortion_{}'.format(i+1),
+            'description': description,
             'parameters': parameters,
             'tdate': self.tdate,
             'validity_start': self.validity_start,
             'validity_end': self.validity_end,
-            'transfo_type': typ,
         }
-        return self.get_or_create_transfo(transfo, source, target)
+        return self.api.get_or_create_transfo(transfo, type_, source, target)
 
     def get_or_create_transfotree(self, node, transfos):
         transfotree = {
@@ -247,24 +255,4 @@ class ImportAutocal(Command):
             'sensor_connections': False,
             'transfos': [t['id'] for t in transfos],
         }
-        return self.get_or_create('transfotree', transfotree)
-
-    def get_or_create(self, typ, obj):
-        obj, code = self.api.get_or_create_object(typ, obj)
-        info = '{} {}({}) "{}"'.format(code, typ, obj['id'], obj['name'])
-        self.log.info(info)
-        self.log.debug(json.dumps(obj, indent=self.indent))
-        return obj
-
-    def get_or_create_transfo(self, transfo, source, target):
-        transfo_type = {
-            'name': transfo['transfo_type'],
-            'func_signature': list(transfo['parameters'].keys()),
-        }
-        transfo_type = self.get_or_create('transfos/type', transfo_type)
-        transfo['transfo_type'] = transfo_type['id']
-        transfo['source'] = source['id']
-        transfo['target'] = target['id']
-        transfo['description'] = '"{}" transformation, imported from "{}"' \
-            .format(transfo_type['name'], self.basename)
-        return self.get_or_create('transfo', transfo)
+        return self.api.get_or_create_log('transfotree', transfotree)
