@@ -1,21 +1,24 @@
 import requests
 import os
+import json
 
 os.environ['NO_PROXY'] = 'localhost'
 
 
 class Api(object):
 
-    def __init__(self, api_url, api_key):
+    def __init__(self, api_url, api_key, log, indent):
         self.api_url = None
         self.headers = None
         self.staging = None
-        self.unique_keys = {
-            'transfo': ['name', 'source', 'target'],
-            'transfos/type': ['name'],
-            'transfotree': ['name', 'transfos'],
-            'referential': ['name', 'sensor'],
-            'sensor': ['name'],
+        self.log = log
+        self.indent = indent
+        self.ids = {
+            'transfo': ['source', 'target'],
+            'transfos/type': [],
+            'transfotree': ['transfos'],
+            'referential': ['sensor'],
+            'sensor': [],
         }
 
         if api_url:
@@ -157,7 +160,7 @@ class Api(object):
                           .format(key, typ, obj['id'], obj[key], got[key])
                     raise RuntimeError(err)
 
-            return got, 'i'
+            return got, '='
 
         if 'name' not in obj:
             err = 'Error: objects should specify ' \
@@ -165,8 +168,8 @@ class Api(object):
             raise RuntimeError(err)
 
         # look up by dict, and raise an error upon mismatch
-        keys = self.unique_keys[typ]
-        dict_ = {k: obj[k] for k in keys}
+        dict_ = {k: obj[k] for k in self.ids[typ]}
+        dict_['name'] = obj['name']
         got = self.get_object_by_dict(typ, dict_)
         if got:
             # raise an error upon value mismatch for specified keys
@@ -178,8 +181,29 @@ class Api(object):
                           .format(key, typ, obj['name'], obj[key], got[key])
                     raise RuntimeError(err)
 
-            return got, '='
+            return got, '?'
 
         # no successfull lookup by id or by name, create a new object
         got = self.create_object(typ, obj)
         return got, '+'
+
+    def get_or_create_log(self, typ, obj):
+        obj, code = self.get_or_create_object(typ, obj)
+        info = '{} ({}) {} [{}] "{}"'.format(
+            code, obj['id'], typ,
+            '->'.join([str(obj[k]) for k in self.ids[typ]]),
+            obj['name'])
+        self.log.info(info)
+        self.log.debug(json.dumps(obj, indent=self.indent))
+        return obj
+
+    def get_or_create_transfo(self, transfo, type_, source, target):
+        transfo_type = {
+            'name': type_,
+            'func_signature': list(transfo['parameters'].keys()),
+        }
+        transfo_type = self.get_or_create_log('transfos/type', transfo_type)
+        transfo['transfo_type'] = transfo_type['id']
+        transfo['source'] = source['id']
+        transfo['target'] = target['id']
+        return self.get_or_create_log('transfo', transfo)
