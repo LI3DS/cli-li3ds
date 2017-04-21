@@ -89,25 +89,38 @@ class ImportOrimatis(Command):
             self.log.info("Staging mode (no api url/key provided).")
 
         root = xmlutil.root(self.filename, 'orientation')
+        sensor_node = root.find('geometry/intrinseque/sensor')
+        spherique_node = root.find('geometry/intrinseque/spherique')
+        intrinsic = sensor_node or spherique_node
+        if not intrinsic:
+            err = 'Error: no supported "intrinseque" node found' \
+                '("sensor" or "spherique")'
+            raise RuntimeError(err)
 
         self.metadata = self.get_metadata(root)
         self.acquisition_datetime = self.get_acquisition_datetime(root)
         self.calibration_datetime = self.get_calibration_datetime(root)
 
-        sensor = self.get_or_create_camera_sensor(root)
+        sensor = self.get_or_create_camera_sensor(intrinsic)
 
-        # get or create world, euclidean, idealImage and rawImage referentials
+        # get or create world, euclidean and rawImage referentials
         ref_wo = self.get_or_create_wo_referential(root, sensor)
         ref_eu = self.get_or_create_eu_referential(root, sensor)
-        ref_ii = self.get_or_create_ii_referential(root, sensor)
         ref_ri = self.get_or_create_ri_referential(root, sensor)
 
-        # get or create pinhole, distortion and pose transforms
-        pinh = self.get_or_create_pinh_transform(root, ref_eu, ref_ii)
-        dist = self.get_or_create_dist_transform(root, ref_ii, ref_ri)
+        # get or create pose transforms
         pose = self.get_or_create_pose_transforms(root, ref_wo, ref_eu)
 
-        transfos = [pinh, dist, pose[0]]
+        if sensor_node:
+            ref_ii = self.get_or_create_ii_referential(root, sensor)
+            pinh = self.get_or_create_pinh_transform(root, ref_eu, ref_ii)
+            dist = self.get_or_create_dist_transform(root, ref_ii, ref_ri)
+            transfos = [pose[0], pinh, dist]
+
+        else:
+            sphe = self.get_or_create_sphe_transform(root, ref_eu, ref_ri)
+            transfos = [pose[0], sphe]
+
         self.get_or_create_transfotree(root, transfos)
 
         metadata_dump = json.dumps(self.metadata, indent=self.indent)
@@ -131,13 +144,15 @@ class ImportOrimatis(Command):
             err = 'Error: supported time_system is "UTC"'
             raise RuntimeError(err)
 
-        return datetime.datetime(Y, m, d, H, M, S, s, pytz.UTC)
+        return datetime.datetime(Y, m, d, H, M, S, s, pytz.UTC).isoformat()
 
     @staticmethod
     def get_calibration_datetime(node):
-        tag = 'geometry/intrinseque/sensor/calibration_date'
-        D, M, Y = xmlutil.child(node, tag).text.strip().split('-')
-        return datetime.date(int(Y), int(M), int(D))
+        date = node.find('geometry/intrinseque/sensor/calibration_date')
+        if not date:
+            return None
+        D, M, Y = date.text.strip().split('-')
+        return datetime.date(int(Y), int(M), int(D)).isoformat()
 
     @staticmethod
     def get_metadata(node):
@@ -154,29 +169,43 @@ class ImportOrimatis(Command):
         Y = 2000 + int(date/10000)
         m = int(date/100) % 100
         d = date % 100
-        date = datetime.date(Y, m, d)
+        date = datetime.date(Y, m, d).isoformat()
+
+        flatfield = node.findtext('flatfield_name')
 
         metadata = {
             'image': image,
             'project': xmlutil.child(node, 'chantier').text.strip(),
-            'date': date.isoformat(),
+            'date': date,
             'session': xmlutil.child_int(node, 'session'),
             'section': xmlutil.child_int(node, 'section'),
             'numero': xmlutil.child_int(node, 'numero'),
             'position': xmlutil.child(node, 'position').text.strip(),
-            'flatfield': xmlutil.child(node, 'flatfield_name').text.strip(),
+            'flatfield': flatfield.strip() if flatfield else None
         }
-        return metadata
+
+        return {k: v for k, v in metadata.items() if v is not None}
 
     def get_or_create_camera_sensor(self, node):
         """
         Create a camera sensor
         """
-        node = xmlutil.child(node, 'geometry/intrinseque/sensor')
-        pixel_size = xmlutil.child_float(node, 'pixel_size')
+
+        name = None
+        pixel_size = None
         image_size = xmlutil.child_floats(node, 'image_size/[width,height]')
-        name = xmlutil.child(node, 'name').text.strip()
-        serial = xmlutil.child(node, 'serial_number').text.strip()
+        serial = ''
+
+        if node.tag == 'sensor':
+            name = xmlutil.child(node, 'name').text.strip()
+            pixel_size = xmlutil.child_float(node, 'pixel_size')
+            serial = xmlutil.child(node, 'serial_number').text.strip()
+
+        specs = {
+            'image_size': image_size,
+            'pixel_size': pixel_size,
+            'flatfield': self.metadata.get('flatfield', None),
+        }
 
         description = 'camera sensor, imported from "{}"'.format(
                 self.basename)
@@ -185,14 +214,8 @@ class ImportOrimatis(Command):
             'name': self.sensor_name or name,
             'description': description,
             'type': 'camera',
-            'brand': '',
-            'model': '',
             'serial_number': serial,
-            'specifications': {
-                'pixel_size': pixel_size,
-                'image_size': image_size,
-                'flatfield': self.metadata['flatfield'],
-            },
+            'specifications': {k: v for k, v in specs.items() if v is not None}
         }
         return self.api.get_or_create_log('sensor', sensor)
 
@@ -274,7 +297,26 @@ class ImportOrimatis(Command):
                 'focal': xmlutil.child_float(node, 'ppa/focale'),
                 'ppa': xmlutil.child_floats(node, 'ppa/[c,l]'),
             },
-            'tdate': self.calibration_datetime.isoformat(),
+            'tdate': self.calibration_datetime,
+            'validity_start': self.validity_start,
+            'validity_end': self.validity_end,
+        }
+        return self.api.get_or_create_transfo(transfo, type_, ref_eu, ref_ii)
+
+    def get_or_create_sphe_transform(self, node, ref_eu, ref_ii):
+        node = xmlutil.child(node, 'geometry/intrinseque/spherique')
+
+        type_ = 'spherical'
+        description = '"{}" transformation, imported from "{}"' \
+            .format(type_, self.basename)
+        transfo = {
+            'name': 'projection',
+            'description': description,
+            'parameters': {
+                'ppa': xmlutil.child_floats(node, 'ppa/[c,l]'),
+                'lambda': xmlutil.child_floats(node, 'frame/lambda_[min,max]'),
+                'phi': xmlutil.child_floats(node, 'frame/phi_[min,max]'),
+            },
             'validity_start': self.validity_start,
             'validity_end': self.validity_end,
         }
@@ -293,7 +335,7 @@ class ImportOrimatis(Command):
                 'C': xmlutil.child_floats(node, 'distortion/pps/[c,l]'),
                 'R': xmlutil.child_floats(node, 'distortion/[r3,r5,r7]'),
             },
-            'tdate': self.calibration_datetime.isoformat(),
+            'tdate': self.calibration_datetime,
             'validity_start': self.validity_start,
             'validity_end': self.validity_end,
         }
@@ -320,8 +362,8 @@ class ImportOrimatis(Command):
                 'description': description,
                 'parameters': {'quat': quat, 'vec3': p},
                 'tdate': self.tdate,
-                'validity_start': self.acquisition_datetime.isoformat(),
-                'validity_end': self.acquisition_datetime.isoformat(),
+                'validity_start': self.acquisition_datetime,
+                'validity_end': self.acquisition_datetime,
             }
             transfo = self.api.get_or_create_transfo(
                 transfo, type_, source, target)
@@ -348,8 +390,8 @@ class ImportOrimatis(Command):
                 'description': description,
                 'parameters': {'mat4x3': matrix},
                 'tdate': self.tdate,
-                'validity_start': self.acquisition_datetime.isoformat(),
-                'validity_end': self.acquisition_datetime.isoformat(),
+                'validity_start': self.acquisition_datetime,
+                'validity_end': self.acquisition_datetime,
             }
             transfo = self.api.get_or_create_transfo(
                 transfo, type_, source, target)
