@@ -200,7 +200,8 @@ class Api(object):
     def get_or_create_transfo(self, transfo, type_, source, target):
         transfo_type = {
             'name': type_,
-            'func_signature': list(transfo['parameters'].keys()),
+            'description': type_,
+            'func_signature': sorted(list(transfo['parameters'].keys())),
         }
         transfo_type = self.get_or_create_log('transfos/type', transfo_type)
         transfo['transfo_type'] = transfo_type['id']

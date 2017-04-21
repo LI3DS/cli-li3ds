@@ -148,7 +148,7 @@ def rad_data_reader(node, i=0):
     :param node: the ``ModRad`` XML node.
     """
     R = xmlutil.children_float(node, 'CoeffDist')
-    C = xmlutil.child_floats_split(node, 'CDist'),
+    C = xmlutil.child_floats_split(node, 'CDist')
     type_ = 'poly_radial_{}'.format(1+2*len(R))
     return type_, {'C': C, 'R': R}
 
