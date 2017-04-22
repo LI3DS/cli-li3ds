@@ -14,11 +14,16 @@ class Api(object):
         self.log = log
         self.indent = indent
         self.ids = {
-            'transfo': ['source', 'target'],
-            'transfos/type': [],
-            'transfotree': ['transfos'],
-            'referential': ['sensor'],
-            'sensor': [],
+            'transfo': ['name', 'source', 'target'],
+            'transfos/type': ['name'],
+            'transfotree': ['name', 'transfos'],
+            'referential': ['name', 'sensor'],
+            'sensor': ['name'],
+            'platform': ['name'],
+            'project': ['name'],
+            'session': ['name', 'project', 'platform'],
+            'datasource': ['session', 'referential'],
+            'platforms/{id}/config': ['name'],
         }
 
         if api_url:
@@ -37,15 +42,20 @@ class Api(object):
                 'transfotree': [],
                 'referential': [],
                 'sensor': [],
+                'platform': [],
+                'project': [],
+                'session': [],
+                'datasource': [],
+                'platforms/{id}/config': [],
             }
 
-    def create_object(self, typ, obj):
+    def create_object(self, typ, obj, parent={}):
         if self.staging:
             obj['id'] = len(self.staging[typ])
             self.staging[typ].append(obj)
             return obj
 
-        url = self.api_url + '/{}s/'.format(typ)
+        url = self.api_url + '/{}s/'.format(typ.format(**parent))
         resp = requests.post(url, json=obj, headers=self.headers)
         if resp.status_code == 201:
             objs = resp.json()
@@ -54,12 +64,12 @@ class Api(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_object_by_id(self, typ, obj_id):
+    def get_object_by_id(self, typ, obj_id, parent={}):
         if self.staging:
             objs = self.staging[typ]
             return objs[obj_id] if obj_id < len(objs) else None
 
-        url = self.api_url + '/{}s/{:d}/'.format(typ, obj_id)
+        url = self.api_url + '/{}s/{:d}/'.format(typ.format(**parent), obj_id)
         resp = requests.get(url, headers=self.headers)
         if resp.status_code == 200:
             objs = resp.json()
@@ -70,13 +80,13 @@ class Api(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_object_by_name(self, typ, obj_name):
+    def get_object_by_name(self, typ, obj_name, parent={}):
         if self.staging:
             objs = self.staging[typ]
             obj = [obj for obj in objs if obj.name == obj_name]
             return obj[0] if obj else None
 
-        url = self.api_url + '/{}s/'.format(typ)
+        url = self.api_url + '/{}s/'.format(typ.format(**parent))
         resp = requests.get(url, headers=self.headers)
         if resp.status_code == 200:
             objs = resp.json()
@@ -89,14 +99,14 @@ class Api(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_object_by_dict(self, typ, dict_):
+    def get_object_by_dict(self, typ, dict_, parent={}):
         if self.staging:
             objs = self.staging[typ]
             obj = [o for o in objs if all(
                     o[k] == v for k, v in dict_.items() if k in o)]
             return obj[0] if obj else None
 
-        url = self.api_url + '/{}s/'.format(typ)
+        url = self.api_url + '/{}s/'.format(typ.format(**parent))
         resp = requests.get(url, headers=self.headers)
         if resp.status_code == 200:
             objs = resp.json()
@@ -110,11 +120,11 @@ class Api(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_objects(self, typ):
+    def get_objects(self, typ, parent={}):
         if self.staging:
             return self.staging[typ]
 
-        url = self.api_url + '/{}s/'.format(typ)
+        url = self.api_url + '/{}s/'.format(typ.format(**parent))
         resp = requests.get(url, headers=self.headers)
         if resp.status_code == 200:
             objs = resp.json()
@@ -123,26 +133,7 @@ class Api(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_sensor_referentials(self, sensor_id):
-        referentials = self.get_objects('referential')
-        sensor_referentials = [None]
-        for referential in referentials:
-            if referential['sensor'] != sensor_id:
-                continue
-            if referential['root'] is True:
-                if sensor_referentials[0]:
-                    err = 'Multiple base referentials ' \
-                          'found for sensor {:d}'.format(sensor_id)
-                    raise RuntimeError(err)
-                sensor_referentials[0] = referential
-            else:
-                sensor_referentials.append(referential)
-        if sensor_referentials[0] is None:
-            err = 'No base referential found for sensor {:d}'.format(sensor_id)
-            raise RuntimeError(err)
-        return sensor_referentials
-
-    def get_or_create_object(self, typ, obj):
+    def get_or_create_object(self, typ, obj, parent={}):
         obj = {k: v for k, v in obj.items() if v is not None}
         if 'id' in obj:
             # look up by id, raise an error upon lookup failure
@@ -162,14 +153,14 @@ class Api(object):
 
             return got, '='
 
-        if 'name' not in obj:
-            err = 'Error: objects should specify ' \
-                  'either their name or id {}'.format(obj)
+        if not all(k in obj for k in self.ids[typ]):
+            err = 'Error: {} objects should specify ' \
+                  'either their (id) or ({}) {}' \
+                  .format(typ, ','.join(self.ids[typ]), obj)
             raise RuntimeError(err)
 
         # look up by dict, and raise an error upon mismatch
         dict_ = {k: obj[k] for k in self.ids[typ]}
-        dict_['name'] = obj['name']
         got = self.get_object_by_dict(typ, dict_)
         if got:
             # raise an error upon value mismatch for specified keys
@@ -187,12 +178,12 @@ class Api(object):
         got = self.create_object(typ, obj)
         return got, '+'
 
-    def get_or_create_log(self, typ, obj):
+    def get_or_create_log(self, typ, obj, parent={}):
         obj, code = self.get_or_create_object(typ, obj)
-        info = '{} ({}) {} [{}] "{}"'.format(
-            code, obj['id'], typ,
-            '->'.join([str(obj[k]) for k in self.ids[typ]]),
-            obj['name'])
+        info = '{} ({}) {} [{}] {}'.format(
+            code, obj['id'], typ.format(**parent),
+            ', '.join([str(obj[k]) for k in self.ids[typ]]),
+            obj.get('uri', ''))
         self.log.info(info)
         self.log.debug(json.dumps(obj, indent=self.indent))
         return obj

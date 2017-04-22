@@ -1,7 +1,6 @@
 import os
 import getpass
 import logging
-import json
 import datetime
 import pytz
 
@@ -29,6 +28,8 @@ class ImportOrimatis(Command):
         self.filename = None
         self.basename = None
         self.indent = None
+        self.config = None
+        self.transfotree = 'orimatis'
 
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
@@ -46,6 +47,9 @@ class ImportOrimatis(Command):
         parser.add_argument(
             '--sensor-name', '-n',
             help='the camera sensor name (optional)')
+        parser.add_argument(
+            '--config', '-c',
+            help='the configuration name (optional)')
         parser.add_argument(
             '--owner', '-o',
             help='the data owner (optional, default is unix username)')
@@ -83,12 +87,15 @@ class ImportOrimatis(Command):
         self.validity_start = parsed_args.validity_start
         self.validity_end = parsed_args.validity_end
         self.indent = parsed_args.indent
+        self.config = parsed_args.config
         self.api = api.Api(
             parsed_args.api_url, parsed_args.api_key, self.log, self.indent)
         if self.api.staging:
             self.log.info("Staging mode (no api url/key provided).")
 
         root = xmlutil.root(self.filename, 'orientation')
+        xmlutil.child_check(root, 'version', '1.0')
+
         sensor_node = root.find('geometry/intrinseque/sensor')
         spherique_node = root.find('geometry/intrinseque/spherique')
         intrinsic = sensor_node or spherique_node
@@ -97,7 +104,6 @@ class ImportOrimatis(Command):
                 '("sensor" or "spherique")'
             raise RuntimeError(err)
 
-        self.metadata = self.get_metadata(root)
         self.acquisition_datetime = self.get_acquisition_datetime(root)
         self.calibration_datetime = self.get_calibration_datetime(root)
 
@@ -121,14 +127,18 @@ class ImportOrimatis(Command):
             sphe = self.get_or_create_sphe_transform(root, ref_eu, ref_ri)
             transfos = [pose[0], sphe]
 
-        self.get_or_create_transfotree(root, transfos)
+        transfotree = self.get_or_create_transfotree(root, transfos)
 
-        metadata_dump = json.dumps(self.metadata, indent=self.indent)
-        self.log.debug('- metadata {}'.format(metadata_dump))
+        project = self.get_or_create_project(root)
+        platform = self.get_or_create_platform(root)
+        session = self.get_or_create_session(root, project, platform)
+        self.get_or_create_datasource(root, session, ref_ri)
+        self.get_or_create_config(root, platform, [transfotree])
 
         self.log.info('Success!')
 
-    def get_acquisition_datetime(self, node):
+    @staticmethod
+    def get_acquisition_datetime(node):
 
         node = xmlutil.child(node, 'auxiliarydata/image_date')
         Y = xmlutil.child_int(node, 'year')
@@ -155,36 +165,39 @@ class ImportOrimatis(Command):
         return datetime.date(int(Y), int(M), int(D)).isoformat()
 
     @staticmethod
-    def get_metadata(node):
-        version = xmlutil.child(node, 'version').text.strip()
-        if version != '1.0':
-            err = 'Error: orimatis version {} is not supported' \
-                .format(version)
-            raise RuntimeError(err)
+    def get_flatfield(node):
+        flatfield = node.findtext('auxiliarydata/stereopolis/flatfield_name')
+        return flatfield.strip() if flatfield else None
 
-        image = xmlutil.child(node, 'auxiliarydata/image_name').text.strip()
-        node = xmlutil.child(node, 'auxiliarydata/stereopolis')
-
-        date = xmlutil.child_int(node, 'date')
+    @staticmethod
+    def get_date(node):
+        date = xmlutil.child_int(node, 'auxiliarydata/stereopolis/date')
         Y = 2000 + int(date/10000)
         m = int(date/100) % 100
         d = date % 100
-        date = datetime.date(Y, m, d).isoformat()
+        return datetime.date(Y, m, d).isoformat()
 
-        flatfield = node.findtext('flatfield_name')
+    @staticmethod
+    def get_project(node):
+        tag = 'auxiliarydata/stereopolis/chantier'
+        return xmlutil.child(node, tag).text.strip()
 
-        metadata = {
-            'image': image,
-            'project': xmlutil.child(node, 'chantier').text.strip(),
-            'date': date,
-            'session': xmlutil.child_int(node, 'session'),
-            'section': xmlutil.child_int(node, 'section'),
-            'numero': xmlutil.child_int(node, 'numero'),
-            'position': xmlutil.child(node, 'position').text.strip(),
-            'flatfield': flatfield.strip() if flatfield else None
-        }
+    @staticmethod
+    def get_position(node):
+        tag = 'auxiliarydata/stereopolis/position'
+        return xmlutil.child(node, tag).text.strip()
 
-        return {k: v for k, v in metadata.items() if v is not None}
+    @staticmethod
+    def get_session(node):
+        return xmlutil.child_int(node, 'auxiliarydata/stereopolis/session')
+
+    @staticmethod
+    def get_section(node):
+        return xmlutil.child_int(node, 'auxiliarydata/stereopolis/section')
+
+    @staticmethod
+    def get_numero(node):
+        return xmlutil.child_int(node, 'auxiliarydata/stereopolis/numero')
 
     def get_or_create_camera_sensor(self, node):
         """
@@ -204,7 +217,7 @@ class ImportOrimatis(Command):
         specs = {
             'image_size': image_size,
             'pixel_size': pixel_size,
-            'flatfield': self.metadata.get('flatfield', None),
+            'flatfield': self.get_flatfield(node),
         }
 
         description = 'camera sensor, imported from "{}"'.format(
@@ -277,7 +290,7 @@ class ImportOrimatis(Command):
                       'imported from "{}"'.format(self.basename)
         referential = {
             'description': description,
-            'name': self.metadata['position'],
+            'name': self.get_position(node),
             'root': False,
             'sensor': sensor['id'],
             'srid': 0,
@@ -401,10 +414,60 @@ class ImportOrimatis(Command):
 
     def get_or_create_transfotree(self, node, transfos):
         transfotree = {
-            'name': self.basename,
+            'name': self.transfotree,
             'owner': self.owner,
             'isdefault': True,
             'sensor_connections': False,
-            'transfos': [t['id'] for t in transfos],
+            'transfos': sorted([t['id'] for t in transfos]),
         }
         return self.api.get_or_create_log('transfotree', transfotree)
+
+    def get_or_create_project(self, node):
+        project = {
+            'name': self.get_project(node),
+            'extent': None,
+            'timezone': None,
+        }
+        return self.api.get_or_create_log('project', project)
+
+    def get_or_create_platform(self, node):
+        platform = {
+            'name': 'Stereopolis II',
+            'description': 'IGN Stereopolis',
+            'start_time': None,
+            'end_time': None,
+        }
+        return self.api.get_or_create_log('platform', platform)
+
+    def get_or_create_session(self, node, project, platform):
+        name = '{}/{}/{}'.format(
+            self.get_date(node),
+            self.get_section(node),
+            self.get_session(node))
+        session = {
+            'name': name,
+            'project': project['id'],
+            'platform': platform['id'],
+            'start_time': None,
+            'end_time': None,
+        }
+        return self.api.get_or_create_log('session', session)
+
+    def get_or_create_datasource(self, node, session, referential):
+        image = xmlutil.child(node, 'auxiliarydata/image_name').text.strip()
+        datasource = {
+            'session': session['id'],
+            'referential': referential['id'],
+            'uri': image,
+        }
+        return self.api.get_or_create_log('datasource', datasource)
+
+    def get_or_create_config(self, node, platform, transfotrees):
+        transfotrees = sorted([t['id'] for t in transfotrees])
+        config = {
+            'name': self.config or self.get_project(node),
+            'owner': self.owner,
+            'transfo_trees':  transfotrees,
+        }
+        return self.api.get_or_create_log(
+            'platforms/{id}/config', config, platform)
