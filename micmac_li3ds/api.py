@@ -37,7 +37,8 @@ class Api(object):
                 'X-API-KEY': api_key
                 }
         else:
-            self.log.info("Staging mode (use -u/-k options to provide an api url and key).")
+            self.log.info("# Staging mode")
+            self.log.info("use -u/-k options to provide an api url and key).")
             self.staging = {
                 'transfo': [],
                 'transfos/type': [],
@@ -190,8 +191,8 @@ class Api(object):
         self.log.debug(json.dumps(obj, indent=self.indent))
         return obj
 
-    def get_or_create_sensor(self, name, sensor_type, *, description=None,
-                             serial='', specs=None, sensor_id=None):
+    def get_or_create_sensor(self, name, sensor_type, *, sensor_id=None,
+                             description='', serial='', specs=None):
         sensor = {
             'id': sensor_id,
             'name': name,
@@ -202,8 +203,8 @@ class Api(object):
         }
         return self.get_or_create('sensor', sensor)
 
-    def get_or_create_referential(self, name, sensor, *, description='',
-                                  root=False, srid=0, referential_id=None):
+    def get_or_create_referential(self, name, sensor, *, referential_id=None,
+                                  description='', root=False, srid=0):
         referential = {
             'id': referential_id,
             'name': name,
@@ -215,9 +216,9 @@ class Api(object):
         return self.get_or_create('referential', referential)
 
     def get_or_create_transfo(self, name, type_name, source, target,
-                              parameters, *, description='', tdate=None,
-                              validity_start=None, validity_end=None,
-                              reverse=False, transfo_id=None, type_id=None):
+                              parameters, *, transfo_id=None, type_id=None,
+                              description='', reverse=False, tdate=None,
+                              validity_start=None, validity_end=None):
         transfo_type = {
             'id': type_id,
             'name': type_name,
@@ -239,21 +240,11 @@ class Api(object):
         }
         return self.get_or_create('transfo', transfo)
 
-    def get_or_create_transfo_old(self, transfo, type_, source, target):
-        transfo_type = {
-            'name': type_,
-            'description': type_,
-            'func_signature': sorted(list(transfo['parameters'].keys())),
-        }
-        transfo_type = self.get_or_create('transfos/type', transfo_type)
-        transfo['transfo_type'] = transfo_type['id']
-        transfo['source'] = source['id']
-        transfo['target'] = target['id']
-        return self.get_or_create('transfo', transfo)
-
-    def get_or_create_transfotree(self, name, transfos, *, owner=None,
+    def get_or_create_transfotree(self, name, transfos,
+                                  *, transfotree_id=None, owner=None,
                                   isdefault=True, sensor_connections=False):
         transfotree = {
+            'id': transfotree_id,
             'name': name,
             'transfos':  sorted([t['id'] for t in transfos]),
             'owner': owner or getpass.getuser(),
@@ -262,17 +253,21 @@ class Api(object):
         }
         return self.get_or_create('transfotree', transfotree)
 
-    def get_or_create_project(self, name, *, extent=None, timezone=None):
+    def get_or_create_project(self, name,
+                              *, project_id=None, extent=None, timezone=None):
         project = {
+            'id': project_id,
             'name': name,
             'extent': extent,
             'timezone': timezone,
         }
         return self.get_or_create('project', project)
 
-    def get_or_create_platform(self, name, *,
-                               description='', start_time=None, end_time=None):
+    def get_or_create_platform(self, name,
+                               *, platform_id=None, description='',
+                               start_time=None, end_time=None):
         platform = {
+            'id': platform_id,
             'name': name,
             'description': description,
             'start_time': start_time,
@@ -280,9 +275,11 @@ class Api(object):
         }
         return self.get_or_create('platform', platform)
 
-    def get_or_create_session(self, name, project, platform, *,
+    def get_or_create_session(self, name, project, platform,
+                              *, session_id=None,
                               start_time=None, end_time=None):
         session = {
+            'id': session_id,
             'name': name,
             'project': project['id'],
             'platform': platform['id'],
@@ -291,17 +288,20 @@ class Api(object):
         }
         return self.get_or_create('session', session)
 
-    def get_or_create_datasource(self, session, referential, uri):
+    def get_or_create_datasource(self, session, referential, uri,
+                                 *, datasource_id=None):
         datasource = {
+            'id': datasource_id,
             'session': session['id'],
             'referential': referential['id'],
             'uri': uri.strip(),
         }
         return self.get_or_create('datasource', datasource)
 
-    def get_or_create_config(self, name, platform, transfotrees, *,
-                             owner=None):
+    def get_or_create_config(self, name, platform, transfotrees,
+                             *, config_id=None, owner=None):
         config = {
+            'id': config_id,
             'name': name,
             'owner': owner or getpass.getuser(),
             'transfo_trees':  sorted([t['id'] for t in transfotrees]),
