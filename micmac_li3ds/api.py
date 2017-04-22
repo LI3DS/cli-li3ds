@@ -141,7 +141,7 @@ class Api(object):
         if 'id' in obj:
             # look up by id, raise an error upon lookup failure
             # or value mismatch for specified keys
-            got = self.get_object_by_id(typ, obj['id'])
+            got = self.get_object_by_id(typ, obj['id'], parent)
             if not got:
                 err = 'Error: {} with id {:d} not in db'.format(typ, obj['id'])
                 raise RuntimeError(err)
@@ -164,7 +164,7 @@ class Api(object):
 
         # look up by dict, and raise an error upon mismatch
         dict_ = {k: obj[k] for k in self.ids[typ]}
-        got = self.get_object_by_dict(typ, dict_)
+        got = self.get_object_by_dict(typ, dict_, parent)
         if got:
             # raise an error upon value mismatch for specified keys
             all_keys = set(obj.keys()).intersection(got.keys())
@@ -178,7 +178,7 @@ class Api(object):
             return got, '?'
 
         # no successfull lookup by id or by name, create a new object
-        got = self.create_object(typ, obj)
+        got = self.create_object(typ, obj, parent)
         return got, '+'
 
     def get_or_create(self, typ, obj, parent={}):
@@ -192,7 +192,7 @@ class Api(object):
         return obj
 
     def get_or_create_sensor(self, name, sensor_type, *, sensor_id=None,
-                             description='', serial='', specs=None):
+                             description='', serial='', specs={}):
         sensor = {
             'id': sensor_id,
             'name': name,
