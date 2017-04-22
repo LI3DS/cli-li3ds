@@ -1,5 +1,4 @@
 import os
-import getpass
 import logging
 
 from cliff.command import Command
@@ -77,15 +76,13 @@ class ImportBlinis(Command):
         self.sensor_name = parsed_args.sensor_name
         self.filename = parsed_args.filename
         self.basename = os.path.basename(self.filename)
-        self.owner = parsed_args.owner or getpass.getuser()
+        self.owner = parsed_args.owner
         self.tdate = parsed_args.calibration_date
         self.validity_start = parsed_args.validity_start
         self.validity_end = parsed_args.validity_end
         self.indent = parsed_args.indent
         self.api = api.Api(
             parsed_args.api_url, parsed_args.api_key, self.log, self.indent)
-        if self.api.staging:
-            self.log.info("Staging mode (no api url/key provided).")
 
         root = xmlutil.root(self.filename, 'StructBlockCam')
         nodes = xmlutil.children(root, 'LiaisonsSHC/ParamOrientSHC')

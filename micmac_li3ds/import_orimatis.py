@@ -89,8 +89,6 @@ class ImportOrimatis(Command):
         self.config = parsed_args.config
         self.api = api.Api(
             parsed_args.api_url, parsed_args.api_key, self.log, self.indent)
-        if self.api.staging:
-            self.log.info("Staging mode (no api url/key provided).")
 
         root = xmlutil.root(self.filename, 'orientation')
         xmlutil.child_check(root, 'version', '1.0')
