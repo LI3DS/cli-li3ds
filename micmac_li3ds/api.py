@@ -37,6 +37,7 @@ class Api(object):
                 'X-API-KEY': api_key
                 }
         else:
+            self.log.info("Staging mode (use -u/-k options to provide an api url and key).")
             self.staging = {
                 'transfo': [],
                 'transfos/type': [],
