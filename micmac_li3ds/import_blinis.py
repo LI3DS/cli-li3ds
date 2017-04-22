@@ -105,44 +105,32 @@ class ImportBlinis(Command):
 
     def get_or_create_sensor_group(self, node):
         name = xmlutil.child(node, 'KeyIm2TimeCam').text.strip()
-        description = 'sensor group, imported from "{}"'.format(
-                self.basename)
-        sensor = {
-            'id': self.sensor_id,
-            'name': self.sensor_name or name,
-            'brand': '',
-            'description': description,
-            'model': '',
-            'serial_number': '',
-            'specifications': {},
-            'type': 'group',
-        }
-        return self.api.get_or_create('sensor', sensor)
+        return self.api.get_or_create_sensor(
+            name=self.sensor_name or name,
+            sensor_type='group',
+            sensor_id=self.sensor_id,
+            description='imported from "{}"'.format(self.basename),
+        )
 
     def get_or_create_base_referential(self, node, sensor):
         description = 'base referential for sensor group {:d}, ' \
             'imported from "{}"'.format(sensor['id'], self.basename)
-        referential = {
-            'description': description,
-            'name': 'base',
-            'root': True,
-            'sensor': sensor['id'],
-            'srid': 0,
-        }
-        return self.api.get_or_create('referential', referential)
+        return self.api.get_or_create_referential(
+            name='base',
+            sensor=sensor,
+            description=description,
+            root=True,
+        )
 
     def get_or_create_referential(self, node, sensor):
         description = 'referential for sensor group {:d}, ' \
                       'imported from "{}"'.format(
                           sensor['id'], self.basename)
-        referential = {
-            'name': xmlutil.child(node, 'IdGrp').text.strip(),
-            'description': description,
-            'root': False,
-            'sensor': sensor['id'],
-            'srid': 0,
-        }
-        return self.api.get_or_create('referential', referential)
+        return self.api.get_or_create_referential(
+            name=xmlutil.child(node, 'IdGrp').text.strip(),
+            sensor=sensor,
+            description=description,
+        )
 
     def get_or_create_transform(self, node, source, target):
         matrix = []
@@ -151,26 +139,18 @@ class ImportBlinis(Command):
             matrix.extend(xmlutil.child_floats_split(node, l))
             matrix.append(p[i])
 
-        type_ = 'affine_mat'
-        description = '"{}" transformation, imported from "{}"' \
-            .format(type_, self.basename)
-        transfo = {
-            'name': target['name'],
-            'description': description,
-            'parameters': {'mat4x3': matrix},
-            'tdate': self.tdate,
-            'validity_start': self.validity_start,
-            'validity_end': self.validity_end,
-        }
-        return self.api.get_or_create_transfo_old(
-            transfo, type_, source, target)
+        return self.api.get_or_create_transfo(
+            target['name'], 'affine_mat', source, target,
+            description='imported from "{}"'.format(self.basename),
+            parameters={'mat4x3': matrix},
+            tdate=self.tdate,
+            validity_start=self.validity_start,
+            validity_end=self.validity_end,
+        )
 
     def get_or_create_transfotree(self, node, transfos):
-        transfotree = {
-            'name': self.basename,
-            'owner': self.owner,
-            'isdefault': True,
-            'sensor_connections': False,
-            'transfos': [t['id'] for t in transfos],
-        }
-        return self.api.get_or_create('transfotree', transfotree)
+        return self.api.get_or_create_transfotree(
+            name=self.basename,
+            transfos=transfos,
+            owner=self.owner,
+        )

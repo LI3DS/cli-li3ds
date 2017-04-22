@@ -207,6 +207,7 @@ class ImportOrimatis(Command):
             name = xmlutil.child(node, 'name').text.strip()
             pixel_size = xmlutil.child_float(node, 'pixel_size')
             serial = xmlutil.child(node, 'serial_number').text.strip()
+
         elif node.tag == 'spherique':
             name = 'spherical'
 
@@ -216,12 +217,11 @@ class ImportOrimatis(Command):
             'pixel_size': pixel_size,
             'flatfield': self.get_flatfield(node),
         }
-        description = 'imported from "{}"'.format(self.basename)
         return self.api.get_or_create_sensor(
             name=self.sensor_name or name,
             sensor_type='camera',
             sensor_id=self.sensor_id,
-            description=description,
+            description='imported from "{}"'.format(self.basename),
             serial=serial,
             specs=specs,
         )
