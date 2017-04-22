@@ -136,7 +136,7 @@ class ImportAutocal(Command):
                 'image_size': image_size,
             },
         }
-        return self.api.get_or_create_log('sensor', sensor)
+        return self.api.get_or_create('sensor', sensor)
 
     def get_or_create_raw_image_referential(self, node, sensor):
         description = 'origin: top left corner of top left pixel, ' \
@@ -150,7 +150,7 @@ class ImportAutocal(Command):
             'sensor': sensor['id'],
             'srid': 0,
         }
-        return self.api.get_or_create_log('referential', referential)
+        return self.api.get_or_create('referential', referential)
 
     def get_or_create_orintglob_referential(self, node, sensor):
         description = 'origin: top left corner of top left pixel, ' \
@@ -164,7 +164,7 @@ class ImportAutocal(Command):
             'sensor': sensor['id'],
             'srid': 0,
         }
-        return self.api.get_or_create_log('referential', referential)
+        return self.api.get_or_create('referential', referential)
 
     def get_or_create_distortion_referential(self, node, sensor, i):
         description = 'origin: top left corner of top left pixel, ' \
@@ -178,7 +178,7 @@ class ImportAutocal(Command):
             'sensor': sensor['id'],
             'srid': 0,
         }
-        return self.api.get_or_create_log('referential', referential)
+        return self.api.get_or_create('referential', referential)
 
     def get_or_create_euclidean_referential(self, node, sensor):
         description = 'origin: camera position, ' \
@@ -193,7 +193,7 @@ class ImportAutocal(Command):
             'sensor': sensor['id'],
             'srid': 0,
         }
-        return self.api.get_or_create_log('referential', referential)
+        return self.api.get_or_create('referential', referential)
 
     def get_or_create_pinhole_transform(self, node, source, target):
         type_ = 'pinhole'
@@ -210,7 +210,8 @@ class ImportAutocal(Command):
             'validity_start': self.validity_start,
             'validity_end': self.validity_end,
         }
-        return self.api.get_or_create_transfo(transfo, type_, source, target)
+        return self.api.get_or_create_transfo_old(
+            transfo, type_, source, target)
 
     def get_or_create_orintglob_transform(self, node, source, target):
         if xmlutil.child_bool(node, 'C2M'):
@@ -230,7 +231,8 @@ class ImportAutocal(Command):
             'validity_start': self.validity_start,
             'validity_end': self.validity_end,
         }
-        return self.api.get_or_create_transfo(transfo, type_, source, target)
+        return self.api.get_or_create_transfo_old(
+            transfo, type_, source, target)
 
     def get_or_create_distortion_transform(self, node, source, target, i):
         type_, parameters = distortion.read_info(node)
@@ -245,7 +247,8 @@ class ImportAutocal(Command):
             'validity_start': self.validity_start,
             'validity_end': self.validity_end,
         }
-        return self.api.get_or_create_transfo(transfo, type_, source, target)
+        return self.api.get_or_create_transfo_old(
+            transfo, type_, source, target)
 
     def get_or_create_transfotree(self, node, transfos):
         transfotree = {
@@ -255,4 +258,4 @@ class ImportAutocal(Command):
             'sensor_connections': False,
             'transfos': [t['id'] for t in transfos],
         }
-        return self.api.get_or_create_log('transfotree', transfotree)
+        return self.api.get_or_create('transfotree', transfotree)

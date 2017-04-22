@@ -1,6 +1,7 @@
 import requests
 import os
 import json
+import getpass
 
 os.environ['NO_PROXY'] = 'localhost'
 
@@ -178,8 +179,8 @@ class Api(object):
         got = self.create_object(typ, obj)
         return got, '+'
 
-    def get_or_create_log(self, typ, obj, parent={}):
-        obj, code = self.get_or_create_object(typ, obj)
+    def get_or_create(self, typ, obj, parent={}):
+        obj, code = self.get_or_create_object(typ, obj, parent)
         info = '{} ({}) {} [{}] {}'.format(
             code, obj['id'], typ.format(**parent),
             ', '.join([str(obj[k]) for k in self.ids[typ]]),
@@ -188,14 +189,120 @@ class Api(object):
         self.log.debug(json.dumps(obj, indent=self.indent))
         return obj
 
-    def get_or_create_transfo(self, transfo, type_, source, target):
+    def get_or_create_sensor(self, name, sensor_type, *, description=None,
+                             serial='', specs=None, sensor_id=None):
+        sensor = {
+            'id': sensor_id,
+            'name': name,
+            'type': sensor_type,
+            'description': description,
+            'serial_number': serial,
+            'specifications': {k: v for k, v in specs.items() if v is not None}
+        }
+        return self.get_or_create('sensor', sensor)
+
+    def get_or_create_referential(self, name, sensor, *, description='',
+                                  root=False, srid=0, referential_id=None):
+        referential = {
+            'id': referential_id,
+            'name': name,
+            'sensor': sensor['id'],
+            'description': description,
+            'root': root,
+            'srid': srid,
+        }
+        return self.get_or_create('referential', referential)
+
+    def get_or_create_transfo(self, name, type_name, source, target,
+                              parameters, *, description='', tdate=None,
+                              validity_start=None, validity_end=None,
+                              reverse=False, transfo_id=None, type_id=None):
+        transfo_type = {
+            'id': type_id,
+            'name': type_name,
+            'description': type_name,
+            'func_signature': sorted(list(parameters.keys())),
+        }
+        transfo_type = self.get_or_create('transfos/type', transfo_type)
+        transfo = {
+            'id': transfo_id,
+            'name': name,
+            'source': target['id'] if reverse else source['id'],
+            'target': source['id'] if reverse else target['id'],
+            'transfo_type': transfo_type['id'],
+            'description': description,
+            'parameters': parameters,
+            'tdate': tdate,
+            'validity_start': validity_start,
+            'validity_end': validity_end,
+        }
+        return self.get_or_create('transfo', transfo)
+
+    def get_or_create_transfo_old(self, transfo, type_, source, target):
         transfo_type = {
             'name': type_,
             'description': type_,
             'func_signature': sorted(list(transfo['parameters'].keys())),
         }
-        transfo_type = self.get_or_create_log('transfos/type', transfo_type)
+        transfo_type = self.get_or_create('transfos/type', transfo_type)
         transfo['transfo_type'] = transfo_type['id']
         transfo['source'] = source['id']
         transfo['target'] = target['id']
-        return self.get_or_create_log('transfo', transfo)
+        return self.get_or_create('transfo', transfo)
+
+    def get_or_create_transfotree(self, name, transfos, *, owner=None,
+                                  isdefault=True, sensor_connections=False):
+        transfotree = {
+            'name': name,
+            'transfos':  sorted([t['id'] for t in transfos]),
+            'owner': owner or getpass.getuser(),
+            'isdefault': isdefault,
+            'sensor_connections': sensor_connections,
+        }
+        return self.get_or_create('transfotree', transfotree)
+
+    def get_or_create_project(self, name, *, extent=None, timezone=None):
+        project = {
+            'name': name,
+            'extent': extent,
+            'timezone': timezone,
+        }
+        return self.get_or_create('project', project)
+
+    def get_or_create_platform(self, name, *,
+                               description='', start_time=None, end_time=None):
+        platform = {
+            'name': name,
+            'description': description,
+            'start_time': start_time,
+            'end_time': end_time,
+        }
+        return self.get_or_create('platform', platform)
+
+    def get_or_create_session(self, name, project, platform, *,
+                              start_time=None, end_time=None):
+        session = {
+            'name': name,
+            'project': project['id'],
+            'platform': platform['id'],
+            'start_time': start_time,
+            'end_time': end_time,
+        }
+        return self.get_or_create('session', session)
+
+    def get_or_create_datasource(self, session, referential, uri):
+        datasource = {
+            'session': session['id'],
+            'referential': referential['id'],
+            'uri': uri.strip(),
+        }
+        return self.get_or_create('datasource', datasource)
+
+    def get_or_create_config(self, name, platform, transfotrees, *,
+                             owner=None):
+        config = {
+            'name': name,
+            'owner': owner or getpass.getuser(),
+            'transfo_trees':  sorted([t['id'] for t in transfotrees]),
+        }
+        return self.get_or_create('platforms/{id}/config', config, platform)
