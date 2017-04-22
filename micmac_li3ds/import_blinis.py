@@ -117,7 +117,7 @@ class ImportBlinis(Command):
             'specifications': {},
             'type': 'group',
         }
-        return self.api.get_or_create_log('sensor', sensor)
+        return self.api.get_or_create('sensor', sensor)
 
     def get_or_create_base_referential(self, node, sensor):
         description = 'base referential for sensor group {:d}, ' \
@@ -129,7 +129,7 @@ class ImportBlinis(Command):
             'sensor': sensor['id'],
             'srid': 0,
         }
-        return self.api.get_or_create_log('referential', referential)
+        return self.api.get_or_create('referential', referential)
 
     def get_or_create_referential(self, node, sensor):
         description = 'referential for sensor group {:d}, ' \
@@ -142,7 +142,7 @@ class ImportBlinis(Command):
             'sensor': sensor['id'],
             'srid': 0,
         }
-        return self.api.get_or_create_log('referential', referential)
+        return self.api.get_or_create('referential', referential)
 
     def get_or_create_transform(self, node, source, target):
         matrix = []
@@ -162,7 +162,8 @@ class ImportBlinis(Command):
             'validity_start': self.validity_start,
             'validity_end': self.validity_end,
         }
-        return self.api.get_or_create_transfo(transfo, type_, source, target)
+        return self.api.get_or_create_transfo_old(
+            transfo, type_, source, target)
 
     def get_or_create_transfotree(self, node, transfos):
         transfotree = {
@@ -172,4 +173,4 @@ class ImportBlinis(Command):
             'sensor_connections': False,
             'transfos': [t['id'] for t in transfos],
         }
-        return self.api.get_or_create_log('transfotree', transfotree)
+        return self.api.get_or_create('transfotree', transfotree)
