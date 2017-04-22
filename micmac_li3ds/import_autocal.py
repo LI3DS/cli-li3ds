@@ -121,64 +121,47 @@ class ImportAutocal(Command):
         self.log.info('Success!')
 
     def get_or_create_camera_sensor(self, node):
-        image_size = xmlutil.child_floats_split(node, 'SzIm')
-        description = 'camera sensor, imported from "{}"'.format(
-                self.basename)
-        sensor = {
-            'id': self.sensor_id,
-            'name': self.sensor_name or self.basename,
-            'description': description,
-            'type': 'camera',
-            'brand': '',
-            'model': '',
-            'serial_number': '',
-            'specifications': {
-                'image_size': image_size,
-            },
-        }
-        return self.api.get_or_create('sensor', sensor)
+        return self.api.get_or_create_sensor(
+            name=self.sensor_name or self.basename,
+            sensor_type='camera',
+            sensor_id=self.sensor_id,
+            description='imported from "{}"'.format(self.basename),
+            specs={'image_size': xmlutil.child_floats_split(node, 'SzIm')},
+        )
 
     def get_or_create_raw_image_referential(self, node, sensor):
         description = 'origin: top left corner of top left pixel, ' \
                       '+XY: raster pixel coordinates, ' \
                       '+Z: inverse depth (measured along the optical axis), ' \
                       'imported from "{}"'.format(self.basename)
-        referential = {
-            'description': description,
-            'name': 'rawImage',
-            'root': True,
-            'sensor': sensor['id'],
-            'srid': 0,
-        }
-        return self.api.get_or_create('referential', referential)
+        return self.api.get_or_create_referential(
+            name='rawImage',
+            sensor=sensor,
+            description=description,
+            root=True,
+        )
 
     def get_or_create_orintglob_referential(self, node, sensor):
         description = 'origin: top left corner of top left pixel, ' \
                       '+XY: raster pixel coordinates, ' \
                       '+Z: inverse depth (measured along the optical axis), ' \
                       'imported from "{}"'.format(self.basename)
-        referential = {
-            'description': description,
-            'name': 'orIntImage',
-            'root': False,
-            'sensor': sensor['id'],
-            'srid': 0,
-        }
-        return self.api.get_or_create('referential', referential)
+        return self.api.get_or_create_referential(
+            name='orIntImage',
+            sensor=sensor,
+            description=description,
+        )
 
     def get_or_create_distortion_referential(self, node, sensor, i):
         description = 'origin: top left corner of top left pixel, ' \
                       '+XY: raster pixel coordinates, ' \
                       '+Z: inverse depth (measured along the optical axis), ' \
                       'imported from "{}"'.format(self.basename)
-        referential = {
-            'description': description,
-            'name': 'undistorted{}'.format(i+1),
-            'root': False,
-            'sensor': sensor['id'],
-            'srid': 0,
-        }
-        return self.api.get_or_create('referential', referential)
+        return self.api.get_or_create_referential(
+            name='undistorted_{}'.format(i+1),
+            sensor=sensor,
+            description=description,
+        )
 
     def get_or_create_euclidean_referential(self, node, sensor):
         description = 'origin: camera position, ' \
@@ -186,76 +169,54 @@ class ImportAutocal(Command):
                       '+Y: bottom of the camera, ' \
                       '+Z: optical axis (in front of the camera), ' \
                       'imported from "{}"'.format(self.basename)
-        referential = {
-            'description': description,
-            'name': 'euclidean',
-            'root': False,
-            'sensor': sensor['id'],
-            'srid': 0,
-        }
-        return self.api.get_or_create('referential', referential)
+        return self.api.get_or_create_referential(
+            name='euclidean',
+            sensor=sensor,
+            description=description,
+        )
 
     def get_or_create_pinhole_transform(self, node, source, target):
-        type_ = 'pinhole'
-        description = '"{}" transformation, imported from "{}"' \
-            .format(type_, self.basename)
-        transfo = {
-            'name': 'projection',
-            'description': description,
-            'parameters': {
+        return self.api.get_or_create_transfo(
+            'projection', 'pinhole', source, target,
+            description='imported from "{}"'.format(self.basename),
+            parameters={
                 'focal': xmlutil.child_float(node, 'F'),
                 'ppa': xmlutil.child_floats_split(node, 'PP'),
             },
-            'tdate': self.tdate,
-            'validity_start': self.validity_start,
-            'validity_end': self.validity_end,
-        }
-        return self.api.get_or_create_transfo_old(
-            transfo, type_, source, target)
+            tdate=self.tdate,
+            validity_start=self.validity_start,
+            validity_end=self.validity_end,
+        )
 
     def get_or_create_orintglob_transform(self, node, source, target):
-        if xmlutil.child_bool(node, 'C2M'):
-            source, target = target, source
         affinity = xmlutil.child(node, 'Affinite')
         p = xmlutil.child_floats_split(affinity, 'I00')
         u = xmlutil.child_floats_split(affinity, 'V10')
         v = xmlutil.child_floats_split(affinity, 'V01')
-        type_ = 'affine_3_2'
-        description = '"{}" transformation, imported from "{}"' \
-            .format(type_, self.basename)
-        transfo = {
-            'name': 'affinity',
-            'description': description,
-            'parameters': {'matrix': [u[0], v[0], p[0], u[1], v[1], p[1]]},
-            'tdate': self.tdate,
-            'validity_start': self.validity_start,
-            'validity_end': self.validity_end,
-        }
-        return self.api.get_or_create_transfo_old(
-            transfo, type_, source, target)
+        return self.api.get_or_create_transfo(
+            'affinity', 'affine_3_2', source, target,
+            description='imported from "{}"'.format(self.basename),
+            parameters={'matrix': [u[0], v[0], p[0], u[1], v[1], p[1]]},
+            tdate=self.tdate,
+            validity_start=self.validity_start,
+            validity_end=self.validity_end,
+            reverse=xmlutil.child_bool(node, 'C2M'),
+        )
 
     def get_or_create_distortion_transform(self, node, source, target, i):
-        type_, parameters = distortion.read_info(node)
-
-        description = '"{}" transformation, imported from "{}"' \
-            .format(type_, self.basename)
-        transfo = {
-            'name': 'distortion_{}'.format(i+1),
-            'description': description,
-            'parameters': parameters,
-            'tdate': self.tdate,
-            'validity_start': self.validity_start,
-            'validity_end': self.validity_end,
-        }
-        return self.api.get_or_create_transfo_old(
-            transfo, type_, source, target)
+        transfo_type, parameters = distortion.read_info(node)
+        return self.api.get_or_create_transfo(
+            'distortion_{}'.format(i+1), transfo_type, source, target,
+            description='imported from "{}"'.format(self.basename),
+            parameters=parameters,
+            tdate=self.tdate,
+            validity_start=self.validity_start,
+            validity_end=self.validity_end,
+        )
 
     def get_or_create_transfotree(self, node, transfos):
-        transfotree = {
-            'name': self.basename,
-            'owner': self.owner,
-            'isdefault': True,
-            'sensor_connections': False,
-            'transfos': [t['id'] for t in transfos],
-        }
-        return self.api.get_or_create('transfotree', transfotree)
+        return self.api.get_or_create_transfotree(
+            name=self.basename,
+            transfos=transfos,
+            owner=self.owner,
+        )
