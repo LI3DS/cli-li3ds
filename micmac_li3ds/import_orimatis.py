@@ -397,7 +397,7 @@ class ImportOrimatis(Command):
 
     def get_or_create_config(self, node, platform, transfotrees):
         return self.api.get_or_create_config(
-            name=self.config or self.get_project(node),
+            name=self.config,
             platform=platform,
             transfotrees=transfotrees,
             owner=self.owner,

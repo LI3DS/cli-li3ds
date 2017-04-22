@@ -137,7 +137,6 @@ class Api(object):
         raise RuntimeError(err)
 
     def get_or_create_object(self, typ, obj, parent={}):
-        obj = {k: v for k, v in obj.items() if v is not None}
         if 'id' in obj:
             # look up by id, raise an error upon lookup failure
             # or value mismatch for specified keys
@@ -182,13 +181,15 @@ class Api(object):
         return got, '+'
 
     def get_or_create(self, typ, obj, parent={}):
+        obj = {k: v for k, v in obj.items() if v is not None}
+        self.log.debug("\n-->"+json.dumps(obj, indent=self.indent))
         obj, code = self.get_or_create_object(typ, obj, parent)
+        self.log.debug("<--"+json.dumps(obj, indent=self.indent))
         info = '{} ({}) {} [{}] {}'.format(
             code, obj['id'], typ.format(**parent),
-            ', '.join([str(obj[k]) for k in self.ids[typ]]),
+            ', '.join([str(obj[k]) for k in self.ids[typ] if k in obj]),
             obj.get('uri', ''))
         self.log.info(info)
-        self.log.debug(json.dumps(obj, indent=self.indent))
         return obj
 
     def get_or_create_sensor(self, name, sensor_type, *, sensor_id=None,
@@ -259,7 +260,7 @@ class Api(object):
             'id': project_id,
             'name': name,
             'extent': extent,
-            'timezone': timezone,
+            'timezone': timezone or "Europe/Paris",
         }
         return self.get_or_create('project', project)
 
