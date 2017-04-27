@@ -183,134 +183,183 @@ class Api(object):
         return got, '+'
 
     def get_or_create(self, typ, obj, parent={}):
-        obj = {k: v for k, v in obj.items() if v is not None}
         self.log.debug('')
         if not self.staging:
             self.log.debug("-->"+json.dumps(obj, indent=self.indent))
         obj, code = self.get_or_create_object(typ, obj, parent)
         self.log.debug("<--"+json.dumps(obj, indent=self.indent))
         info = '{} ({}) {} [{}] {}'.format(
-            code, obj['id'], typ.format(**parent),
+            code, obj.get('id', '?'), typ.format(**parent),
             ', '.join([str(obj[k]) for k in self.ids[typ] if k in obj]),
             obj.get('uri', ''))
         self.log.info(info)
         return obj
 
-    def get_or_create_sensor(self, name, sensor_type, *, sensor_id=None,
-                             description='', serial='', specs={}):
-        sensor = {
-            'id': sensor_id,
-            'name': name,
-            'type': sensor_type,
-            'description': description,
-            'serial_number': serial,
-            'specifications': {k: v for k, v in specs.items() if v is not None}
-        }
-        return self.get_or_create('sensor', sensor)
 
-    def get_or_create_referential(self, name, sensor, *, referential_id=None,
-                                  description='', root=False, srid=0):
-        referential = {
-            'id': referential_id,
-            'name': name,
-            'sensor': sensor['id'],
-            'description': description,
-            'root': root,
-            'srid': srid,
-        }
-        return self.get_or_create('referential', referential)
+class ApiObj:
+    def __init__(self, type_, keys, obj=None, **kwarg):
+        self.published = False
+        self.entrypoint = type_
+        self.keys = keys
+        self.obj = {}
+        self.objs = {}
+        self.arrays = {}
+        self.parent = NoObj
+        if obj:
+            self.update(**obj)
+        self.update(**kwarg)
 
-    def get_or_create_transfo(self, name, type_name, source, target,
-                              parameters, *, transfo_id=None, type_id=None,
-                              description='', reverse=False, tdate=None,
-                              validity_start=None, validity_end=None):
-        transfo_type = {
-            'id': type_id,
-            'name': type_name,
-            'description': type_name,
-            'func_signature': sorted(list(parameters.keys())),
-        }
-        transfo_type = self.get_or_create('transfos/type', transfo_type)
-        transfo = {
-            'id': transfo_id,
-            'name': name,
-            'source': target['id'] if reverse else source['id'],
-            'target': source['id'] if reverse else target['id'],
-            'transfo_type': transfo_type['id'],
-            'description': description,
-            'parameters': parameters,
-            'tdate': tdate,
-            'validity_start': validity_start,
-            'validity_end': validity_end,
-        }
-        return self.get_or_create('transfo', transfo)
+    def get_or_create(self, api):
+        if self.published:
+            return self
 
-    def get_or_create_transfotree(self, name, transfos,
-                                  *, transfotree_id=None, owner=None,
-                                  isdefault=True, sensor_connections=False,
-                                  basetree=None):
-        basetransfos = basetree['transfos'] if basetree else []
-        transfotree = {
-            'id': transfotree_id,
-            'name': name,
-            'transfos':  sorted([t['id'] for t in transfos] + basetransfos),
-            'owner': owner or getpass.getuser(),
-            'isdefault': isdefault,
-            'sensor_connections': sensor_connections,
-        }
-        return self.get_or_create('transfotree', transfotree)
+        for key in self.objs:
+            self.obj[key] = self.objs[key].get_or_create(api).obj['id']
 
-    def get_or_create_project(self, name,
-                              *, project_id=None, extent=None, timezone=None):
-        project = {
-            'id': project_id,
-            'name': name,
-            'extent': extent,
-            'timezone': timezone or "Europe/Paris",
-        }
-        return self.get_or_create('project', project)
+        for key in self.arrays:
+            ids = [obj.get_or_create(api).obj['id'] for obj in self.arrays[key]
+                   if obj is not NoObj]
+            self.obj[key] = sorted(ids)
 
-    def get_or_create_platform(self, name,
-                               *, platform_id=None, description='',
-                               start_time=None, end_time=None):
-        platform = {
-            'id': platform_id,
-            'name': name,
-            'description': description,
-            'start_time': start_time,
-            'end_time': end_time,
-        }
-        return self.get_or_create('platform', platform)
+        obj = api.get_or_create(self.entrypoint, self.obj, self.parent.obj)
+        self.obj = obj
+        self.published = True
+        return self
 
-    def get_or_create_session(self, name, project, platform,
-                              *, session_id=None,
-                              start_time=None, end_time=None):
-        session = {
-            'id': session_id,
-            'name': name,
-            'project': project['id'],
-            'platform': platform['id'],
-            'start_time': start_time,
-            'end_time': end_time,
-        }
-        return self.get_or_create('session', session)
+    def update(self, **kwarg):
+        obj = ApiObj.normalize_obj(kwarg)
+        for key in obj:
+            if key not in self.keys:
+                err = 'Error: {} is invalid in {}'.format(key, self.entrypoint)
+                raise RuntimeError(err)
+        self.obj.update(obj)
+        return self
 
-    def get_or_create_datasource(self, session, referential, uri,
-                                 *, datasource_id=None):
-        datasource = {
-            'id': datasource_id,
-            'session': session['id'],
-            'referential': referential['id'],
-            'uri': uri.strip(),
-        }
-        return self.get_or_create('datasource', datasource)
+    def normalize_obj(obj):
+        if isinstance(obj, dict):
+            return {k: ApiObj.normalize_obj(v) for k, v in obj.items()
+                    if v is not None}
+        return {} if obj is None else obj
 
-    def get_or_create_config(self, name, platform, transfotrees,
-                             *, config_id=None, owner=None):
-        config = {
-            'id': config_id,
-            'name': name,
-            'owner': owner or getpass.getuser(),
-            'transfo_trees':  sorted([t['id'] for t in transfotrees]),
+    def __nonzero__(self):
+        return True
+
+
+class NoObj(ApiObj):
+    obj = {}
+
+    def get_or_create(api):
+        return NoObj
+
+    def __nonzero__():
+        return False
+
+
+class Sensor(ApiObj):
+    def __init__(self, obj=None, **kwarg):
+        keys = ['id', 'name', 'type', 'description',
+                'serial_number', 'specifications']
+        super().__init__('sensor', keys, obj, **kwarg)
+
+
+class Referential(ApiObj):
+    def __init__(self, sensor, obj=None, **kwarg):
+        keys = ['id', 'name', 'description', 'root', 'srid']
+        super().__init__('referential', keys, obj, **kwarg)
+        self.objs = {'sensor': sensor}
+
+
+class TransfoType(ApiObj):
+    def __init__(self, obj=None, **kwarg):
+        keys = ['id', 'name', 'description', 'func_signature']
+        super().__init__('transfos/type', keys, obj, **kwarg)
+
+    def update(self, **kwarg):
+        func_signature = kwarg.get('func_signature')
+        if func_signature:
+            kwarg['func_signature'] = sorted(func_signature)
+        return super().update(**kwarg)
+
+
+class Transfo(ApiObj):
+    def __init__(self, source, target, obj=None, reverse=False,
+                 transfo_type=NoObj, type_id=None, type_name=None,
+                 type_description=None, func_signature=None, **kwarg):
+        if func_signature and transfo_type:
+            transfo_type.obj = transfo_type.obj.copy()
+            transfo_type.obj['func_signature'] = func_signature
+
+        keys = ['id', 'name', 'description', 'parameters', 'tdate',
+                'validity_start', 'validity_end']
+        if reverse:
+            source, target = target, source
+        super().__init__('transfo', keys, obj, **kwarg)
+
+        if transfo_type is NoObj:
+            parameters = self.obj.get('parameters')
+            keys = list(parameters.keys()) if parameters else None
+            keys = func_signature or keys
+            transfo_type = TransfoType(
+                id=type_id,
+                name=type_name,
+                description=type_description,
+                func_signature=keys,
+            )
+        self.objs = {
+            'source': source,
+            'target': target,
+            'transfo_type': transfo_type
         }
-        return self.get_or_create('platforms/{id}/config', config, platform)
+
+
+class Transfotree(ApiObj):
+    def __init__(self, transfos, obj=None, **kwarg):
+        keys = ['id', 'name', 'owner', 'isdefault', 'sensor_connections']
+        super().__init__('transfotree', keys, obj, **kwarg)
+        self.obj.setdefault('isdefault', True)
+        self.obj.setdefault('sensor_connections', False)
+        self.obj.setdefault('owner', getpass.getuser())
+        self.arrays = {'transfos': transfos}
+
+
+class Project(ApiObj):
+    def __init__(self, obj=None, **kwarg):
+        keys = ['id', 'name', 'extent', 'timezone']
+        super().__init__('project', keys, obj, **kwarg)
+        self.obj.setdefault('timezone', 'Europe/Paris')
+
+
+class Platform(ApiObj):
+    def __init__(self, obj=None, **kwarg):
+        keys = ['id', 'name', 'description', 'start_time', 'end_time']
+        super().__init__('platform', keys, obj, **kwarg)
+
+
+class Session(ApiObj):
+    def __init__(self, project, platform, obj=None, **kwarg):
+        keys = ['id', 'name', 'start_time', 'end_time']
+        super().__init__('session', keys, obj, **kwarg)
+        self.objs = {'project': project, 'platform': platform}
+
+
+class Datasource(ApiObj):
+    def __init__(self, session, referential, obj=None, **kwarg):
+        keys = ['id', 'uri']
+        super().__init__('datasource', keys, obj, **kwarg)
+        self.objs = {'session': session, 'referential': referential}
+
+    def update(self, **kwarg):
+        uri = kwarg.get('uri')
+        if uri:
+            kwarg['uri'] = uri.strip()
+        super().update(**kwarg)
+
+
+class Config(ApiObj):
+    def __init__(self, platform, transfotrees, obj=None, **kwarg):
+        keys = ['id', 'name', 'description', 'root', 'srid']
+        super().__init__('platforms/{id}/config', keys, obj, **kwarg)
+        self.objs = {'platform': platform}
+        self.arrays = {'transfo_trees': transfotrees}
+        self.obj.setdefault('owner', getpass.getuser())
+        self.parent = platform
