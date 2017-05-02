@@ -70,7 +70,7 @@ class ImportBlinis(Command):
         """
         api = li3ds.Api(args.api_url, args.api_key, args.no_proxy,
                         self.log, args.indent)
-        for filename in args.filename:
+        for filename in args.filenames:
             self.log.info('Importing {}'.format(filename))
             import_blinis(api, args, filename)
         self.log.info('Success!\n')

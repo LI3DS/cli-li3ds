@@ -2,8 +2,9 @@ import os
 import logging
 
 from cliff.command import Command
+from argparse import Namespace
 
-from . import api
+from . import api as li3ds
 from . import distortion
 from . import xmlutil
 
@@ -16,16 +17,6 @@ class ImportAutocal(Command):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.api = None
-        self.sensor_id = None
-        self.sensor_name = None
-        self.owner = None
-        self.tdate = None
-        self.validity_start = None
-        self.validity_end = None
-        self.filename = None
-        self.basename = None
-        self.indent = None
 
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
@@ -47,6 +38,9 @@ class ImportAutocal(Command):
             '--sensor-name', '-n',
             help='the camera sensor name (optional)')
         parser.add_argument(
+            '--transfotree',
+            help='the transfotree name (optional)')
+        parser.add_argument(
             '--owner', '-o',
             help='the data owner (optional, default is unix username)')
         parser.add_argument(
@@ -65,158 +59,174 @@ class ImportAutocal(Command):
             '--indent', type=int,
             help='number of spaces for pretty print indenting')
         parser.add_argument(
-            'filename',
-            help='the autocal file')
+            'filenames', nargs='+',
+            help='the list of autocal filenames')
         return parser
 
-    def take_action(self, parsed_args):
+    def take_action(self, args):
         """
         Create or update a camera sensor.
         """
+        api = li3ds.Api(args.api_url, args.api_key, args.no_proxy,
+                        self.log, args.indent)
+        for filename in args.filenames:
+            self.log.info('Importing {}'.format(filename))
+            import_intrinsics(api, args, filename)
+        self.log.info('Success!\n')
 
-        self.sensor_id = parsed_args.sensor_id
-        self.sensor_name = parsed_args.sensor_name
-        self.filename = parsed_args.filename
-        self.basename = os.path.basename(self.filename)
-        self.owner = parsed_args.owner
-        self.tdate = parsed_args.calibration_date
-        self.validity_start = parsed_args.validity_start
-        self.validity_end = parsed_args.validity_end
-        self.indent = parsed_args.indent
-        self.api = api.Api(parsed_args.api_url, parsed_args.api_key,
-                           parsed_args.no_proxy, self.log, parsed_args.indent)
 
-        root = xmlutil.root(self.filename, 'ExportAPERO')
+def import_intrinsics(api, args, filename, transfotree=None, node=None):
+    args = Namespace(**vars(args))
+    args.basename = os.path.basename(filename)
+    args.transfotree = transfotree or args.transfotree or args.basename
+    args.sensor_name = args.sensor_name or args.basename
+
+    if not node:
+        root = xmlutil.root(filename, 'ExportAPERO')
         node = xmlutil.child(root, 'CalibrationInternConique')
-        xmlutil.child_check(node, 'KnownConv', 'eConvApero_DistM2C')
 
-        sensor = self.get_or_create_camera_sensor(node)
-        target = self.get_or_create_raw_image_referential(node, sensor)
-        transfos = []
+    xmlutil.child_check(node, 'KnownConv', 'eConvApero_DistM2C')
 
-        orintglob_node = node.find('OrIntGlob')
-        if orintglob_node:
-            source = self.get_or_create_orintglob_referential(
-                orintglob_node, sensor)
-            distortion = self.get_or_create_orintglob_transform(
-                orintglob_node, source, target)
-            target = source
-            transfos.append(distortion)
+    sensor = import_sensor(api, args, node)
+    ref_ri = import_raw_image_referential(api, args, node, sensor)
+    transfos = []
 
-        disto_nodes = reversed(xmlutil.children(node, 'CalibDistortion'))
-        for i, disto_node in enumerate(disto_nodes):
-            source = self.get_or_create_distortion_referential(
-                disto_node, sensor, i)
-            distortion = self.get_or_create_distortion_transform(
-                disto_node, source, target, i)
-            target = source
-            transfos.append(distortion)
+    target = ref_ri
+    orintglob = node.find('OrIntGlob')
+    if orintglob:
+        source = import_orintglob_referential(
+            api, args, orintglob, sensor)
+        distortion = import_orintglob_transform(
+            api, args, orintglob, source, target)
+        target = source
+        transfos.append(distortion)
 
-        source = self.get_or_create_euclidean_referential(node, sensor)
-        pinhole = self.get_or_create_pinhole_transform(node, source, target)
-        transfos.append(pinhole)
+    disto_nodes = reversed(xmlutil.children(node, 'CalibDistortion'))
+    for i, disto_node in enumerate(disto_nodes):
+        source = import_distortion_referential(
+            api, args, disto_node, sensor, i)
+        distortion = import_distortion_transform(
+            api, args, disto_node, source, target, i)
+        target = source
+        transfos.append(distortion)
 
-        self.get_or_create_transfotree(node, transfos)
+    ref_eu = import_euclidean_referential(api, args, node, sensor)
+    pinhole = import_pinhole_transform(api, args, node, ref_eu, target)
+    transfos.append(pinhole)
 
-        self.log.info('Success!')
+    transfotree = import_transfotree(api, args, node, transfos)
 
-    def get_or_create_camera_sensor(self, node):
-        return self.api.get_or_create_sensor(
-            name=self.sensor_name or self.basename,
-            sensor_type='camera',
-            sensor_id=self.sensor_id,
-            description='imported from "{}"'.format(self.basename),
-            specs={'image_size': xmlutil.child_floats_split(node, 'SzIm')},
-        )
+    return sensor, ref_ri, ref_eu, transfotree
 
-    def get_or_create_raw_image_referential(self, node, sensor):
-        description = 'origin: top left corner of top left pixel, ' \
-                      '+XY: raster pixel coordinates, ' \
-                      '+Z: inverse depth (measured along the optical axis), ' \
-                      'imported from "{}"'.format(self.basename)
-        return self.api.get_or_create_referential(
-            name='rawImage',
-            sensor=sensor,
-            description=description,
-            root=True,
-        )
 
-    def get_or_create_orintglob_referential(self, node, sensor):
-        description = 'origin: top left corner of top left pixel, ' \
-                      '+XY: raster pixel coordinates, ' \
-                      '+Z: inverse depth (measured along the optical axis), ' \
-                      'imported from "{}"'.format(self.basename)
-        return self.api.get_or_create_referential(
-            name='orIntImage',
-            sensor=sensor,
-            description=description,
-        )
+def import_sensor(api, args, node):
+    return api.get_or_create_sensor(
+        name=args.sensor_name,
+        sensor_type='camera',
+        sensor_id=args.sensor_id,
+        description='imported from "{}"'.format(args.basename),
+        specs={'image_size': xmlutil.child_floats_split(node, 'SzIm')},
+    )
 
-    def get_or_create_distortion_referential(self, node, sensor, i):
-        description = 'origin: top left corner of top left pixel, ' \
-                      '+XY: raster pixel coordinates, ' \
-                      '+Z: inverse depth (measured along the optical axis), ' \
-                      'imported from "{}"'.format(self.basename)
-        return self.api.get_or_create_referential(
-            name='undistorted_{}'.format(i+1),
-            sensor=sensor,
-            description=description,
-        )
 
-    def get_or_create_euclidean_referential(self, node, sensor):
-        description = 'origin: camera position, ' \
-                      '+X: right of the camera, ' \
-                      '+Y: bottom of the camera, ' \
-                      '+Z: optical axis (in front of the camera), ' \
-                      'imported from "{}"'.format(self.basename)
-        return self.api.get_or_create_referential(
-            name='euclidean',
-            sensor=sensor,
-            description=description,
-        )
+def import_raw_image_referential(api, args, node, sensor):
+    description = 'origin: top left corner of top left pixel, ' \
+                  '+XY: raster pixel coordinates, ' \
+                  '+Z: inverse depth (measured along the optical axis), ' \
+                  'imported from "{}"'.format(args.basename)
+    return api.get_or_create_referential(
+        name='distorted',
+        sensor=sensor,
+        description=description,
+        root=True,
+    )
 
-    def get_or_create_pinhole_transform(self, node, source, target):
-        return self.api.get_or_create_transfo(
-            'projection', 'pinhole', source, target,
-            description='imported from "{}"'.format(self.basename),
-            parameters={
-                'focal': xmlutil.child_float(node, 'F'),
-                'ppa': xmlutil.child_floats_split(node, 'PP'),
-            },
-            tdate=self.tdate,
-            validity_start=self.validity_start,
-            validity_end=self.validity_end,
-        )
 
-    def get_or_create_orintglob_transform(self, node, source, target):
-        affinity = xmlutil.child(node, 'Affinite')
-        p = xmlutil.child_floats_split(affinity, 'I00')
-        u = xmlutil.child_floats_split(affinity, 'V10')
-        v = xmlutil.child_floats_split(affinity, 'V01')
-        return self.api.get_or_create_transfo(
-            'affinity', 'affine_3_2', source, target,
-            description='imported from "{}"'.format(self.basename),
-            parameters={'matrix': [u[0], v[0], p[0], u[1], v[1], p[1]]},
-            tdate=self.tdate,
-            validity_start=self.validity_start,
-            validity_end=self.validity_end,
-            reverse=xmlutil.child_bool(node, 'C2M'),
-        )
+def import_orintglob_referential(api, args, node, sensor):
+    description = 'origin: top left corner of top left pixel, ' \
+                  '+XY: raster pixel coordinates, ' \
+                  '+Z: inverse depth (measured along the optical axis), ' \
+                  'imported from "{}"'.format(args.basename)
+    return api.get_or_create_referential(
+        name='raw',
+        sensor=sensor,
+        description=description,
+    )
 
-    def get_or_create_distortion_transform(self, node, source, target, i):
-        transfo_type, parameters = distortion.read_info(node)
-        return self.api.get_or_create_transfo(
-            'distortion_{}'.format(i+1), transfo_type, source, target,
-            description='imported from "{}"'.format(self.basename),
-            parameters=parameters,
-            tdate=self.tdate,
-            validity_start=self.validity_start,
-            validity_end=self.validity_end,
-        )
 
-    def get_or_create_transfotree(self, node, transfos):
-        return self.api.get_or_create_transfotree(
-            name=self.basename,
-            transfos=transfos,
-            owner=self.owner,
-        )
+def import_distortion_referential(api, args, node, sensor, i):
+    description = 'origin: top left corner of top left pixel, ' \
+                  '+XY: raster pixel coordinates, ' \
+                  '+Z: inverse depth (measured along the optical axis), ' \
+                  'imported from "{}"'.format(args.basename)
+    return api.get_or_create_referential(
+        name='undistorted[{}]'.format(i),
+        sensor=sensor,
+        description=description,
+    )
+
+
+def import_euclidean_referential(api, args, node, sensor):
+    description = 'origin: camera position, ' \
+                  '+X: right of the camera, ' \
+                  '+Y: bottom of the camera, ' \
+                  '+Z: optical axis (in front of the camera), ' \
+                  'imported from "{}"'.format(args.basename)
+    return api.get_or_create_referential(
+        name='camera',
+        sensor=sensor,
+        description=description,
+    )
+
+
+def import_pinhole_transform(api, args, node, source, target):
+    name = '{}#FPP'.format(args.transfotree)
+    return api.get_or_create_transfo(
+        name, 'projective_pinhole', source, target,
+        description='imported from "{}"'.format(args.basename),
+        parameters={
+            'focal': xmlutil.child_float(node, 'F'),
+            'ppa': xmlutil.child_floats_split(node, 'PP'),
+        },
+        tdate=args.calibration_date,
+        validity_start=args.validity_start,
+        validity_end=args.validity_end,
+    )
+
+
+def import_orintglob_transform(api, args, node, source, target):
+    affinity = xmlutil.child(node, 'Affinite')
+    p = xmlutil.child_floats_split(affinity, 'I00')
+    u = xmlutil.child_floats_split(affinity, 'V10')
+    v = xmlutil.child_floats_split(affinity, 'V01')
+    name = '{}#OrIntGlob'.format(args.transfotree)
+    return api.get_or_create_transfo(
+        name, 'affine_mat3x2', source, target,
+        description='imported from "{}"'.format(args.basename),
+        parameters={'mat3x2': [u[0], v[0], p[0], u[1], v[1], p[1]]},
+        tdate=args.calibration_date,
+        validity_start=args.validity_start,
+        validity_end=args.validity_end,
+        reverse=xmlutil.child_bool(node, 'C2M'),
+    )
+
+
+def import_distortion_transform(api, args, node, source, target, i):
+    transfo_type, parameters = distortion.read_info(node)
+    name = '{}#CalibDistortion[{}]'.format(args.transfotree, i)
+    return api.get_or_create_transfo(
+        name, transfo_type, source, target,
+        description='imported from "{}"'.format(args.basename),
+        parameters=parameters,
+        tdate=args.calibration_date,
+        validity_start=args.validity_start,
+        validity_end=args.validity_end,
+    )
+
+
+def import_transfotree(api, args, node, transfos):
+    return api.get_or_create_transfotree(
+        name=args.transfotree,
+        transfos=transfos,
+        owner=args.owner,
+    )
