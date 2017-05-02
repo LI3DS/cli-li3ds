@@ -36,8 +36,8 @@ class Api(object):
                 }
             self.proxies = {'http': None} if no_proxy else None
         else:
-            self.log.info("# Staging mode")
-            self.log.info("use -u/-k options to provide an api url and key).")
+            self.log.info('! Staging mode (use -u/-k options '
+                          'to provide an api url and key)')
             self.staging = {
                 'transfo': [],
                 'transfos/type': [],
@@ -146,6 +146,7 @@ class Api(object):
                 raise RuntimeError(err)
 
             all_keys = set(obj.keys()).intersection(got.keys())
+            all_keys.discard('description')
             for key in all_keys:
                 if obj[key] != got[key]:
                     err = 'Error: "{}" mismatch in {} with id {:d} ' \
@@ -167,6 +168,7 @@ class Api(object):
         if got:
             # raise an error upon value mismatch for specified keys
             all_keys = set(obj.keys()).intersection(got.keys())
+            all_keys.discard('description')
             for key in all_keys:
                 if obj[key] != got[key]:
                     err = 'Error: "{}" mismatch in {} "{}" ' \
@@ -182,7 +184,9 @@ class Api(object):
 
     def get_or_create(self, typ, obj, parent={}):
         obj = {k: v for k, v in obj.items() if v is not None}
-        self.log.debug("\n-->"+json.dumps(obj, indent=self.indent))
+        self.log.debug('')
+        if not self.staging:
+            self.log.debug("-->"+json.dumps(obj, indent=self.indent))
         obj, code = self.get_or_create_object(typ, obj, parent)
         self.log.debug("<--"+json.dumps(obj, indent=self.indent))
         info = '{} ({}) {} [{}] {}'.format(
@@ -243,11 +247,13 @@ class Api(object):
 
     def get_or_create_transfotree(self, name, transfos,
                                   *, transfotree_id=None, owner=None,
-                                  isdefault=True, sensor_connections=False):
+                                  isdefault=True, sensor_connections=False,
+                                  basetree=None):
+        basetransfos = basetree['transfos'] if basetree else []
         transfotree = {
             'id': transfotree_id,
             'name': name,
-            'transfos':  sorted([t['id'] for t in transfos]),
+            'transfos':  sorted([t['id'] for t in transfos] + basetransfos),
             'owner': owner or getpass.getuser(),
             'isdefault': isdefault,
             'sensor_connections': sensor_connections,
