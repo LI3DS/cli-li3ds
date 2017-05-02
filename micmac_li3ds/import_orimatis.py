@@ -5,7 +5,7 @@ import pytz
 
 from cliff.command import Command
 
-from . import api
+from . import api as li3ds
 from . import xmlutil
 
 
@@ -28,7 +28,7 @@ class ImportOrimatis(Command):
         self.basename = None
         self.indent = None
         self.config = None
-        self.transfotree = 'orimatis'
+        self.transfotree = None
 
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
@@ -49,6 +49,9 @@ class ImportOrimatis(Command):
         parser.add_argument(
             '--sensor-name', '-n',
             help='the camera sensor name (optional)')
+        parser.add_argument(
+            '--transfotree',
+            help='the transfotree name (optional)')
         parser.add_argument(
             '--config', '-c',
             help='the configuration name (optional)')
@@ -71,29 +74,35 @@ class ImportOrimatis(Command):
             '--indent', type=int,
             help='number of spaces for pretty print indenting')
         parser.add_argument(
-            'filename',
-            help='the orimatis file')
+            'filenames', nargs='+',
+            help='the list of orimatis filenames')
         return parser
 
-    def take_action(self, parsed_args):
+    def take_action(self, args):
         """
         Create or update a camera sensor.
         """
+        api = li3ds.Api(args.api_url, args.api_key, args.no_proxy,
+                        self.log, args.indent)
+        for filename in args.filenames:
+            self.import_orimatis(api, args, filename)
+        self.log.info('Success!\n')
 
-        self.sensor_id = parsed_args.sensor_id
-        self.sensor_name = parsed_args.sensor_name
-        self.filename = parsed_args.filename
-        self.basename = os.path.basename(self.filename)
-        self.owner = parsed_args.owner
-        self.tdate = parsed_args.calibration_date
-        self.validity_start = parsed_args.validity_start
-        self.validity_end = parsed_args.validity_end
-        self.indent = parsed_args.indent
-        self.config = parsed_args.config
-        self.api = api.Api(parsed_args.api_url, parsed_args.api_key,
-                           parsed_args.no_proxy, self.log, parsed_args.indent)
+    def import_orimatis(self, api, args, filename):
+        self.log.info('Importing {}'.format(filename))
+        self.sensor_id = args.sensor_id
+        self.basename = os.path.basename(filename)
+        self.owner = args.owner
+        self.tdate = args.calibration_date
+        self.validity_start = args.validity_start
+        self.validity_end = args.validity_end
+        self.indent = args.indent
+        self.transfotree = args.transfotree or self.basename
+        self.sensor_name = args.sensor_name
+        self.config = args.config or self.basename
+        self.api = api
 
-        root = xmlutil.root(self.filename, 'orientation')
+        root = xmlutil.root(filename, 'orientation')
         xmlutil.child_check(root, 'version', '1.0')
 
         sensor_node = root.find('geometry/intrinseque/sensor')
@@ -134,8 +143,6 @@ class ImportOrimatis(Command):
         session = self.get_or_create_session(root, project, platform)
         self.get_or_create_datasource(root, session, ref_ri)
         self.get_or_create_config(root, platform, [transfotree])
-
-        self.log.info('Success!')
 
     @staticmethod
     def get_acquisition_datetime(node):
@@ -200,7 +207,7 @@ class ImportOrimatis(Command):
         return xmlutil.child_int(node, 'auxiliarydata/stereopolis/numero')
 
     def get_or_create_camera_sensor(self, node):
-        name = None
+        name = self.basename
         pixel_size = None
         serial = ''
 
@@ -208,9 +215,6 @@ class ImportOrimatis(Command):
             name = xmlutil.child(node, 'name').text.strip()
             pixel_size = xmlutil.child_float(node, 'pixel_size')
             serial = xmlutil.child(node, 'serial_number').text.strip()
-
-        elif node.tag == 'spherique':
-            name = 'spherical'
 
         image_size = xmlutil.child_floats(node, 'image_size/[width,height]')
         specs = {
@@ -252,7 +256,7 @@ class ImportOrimatis(Command):
                       '+Z: inverse depth (measured along the optical axis), ' \
                       'imported from "{}"'.format(self.basename)
         return self.api.get_or_create_referential(
-            name='{}/raw'.format(sensor['name']),
+            name='image',
             sensor=sensor,
             description=description,
             root=True,
@@ -264,7 +268,7 @@ class ImportOrimatis(Command):
                       '+Z: inverse depth (measured along the optical axis), ' \
                       'imported from "{}"'.format(self.basename)
         return self.api.get_or_create_referential(
-            name='{}/ideal'.format(sensor['name']),
+            name='undistorted',
             sensor=sensor,
             description=description,
         )
@@ -283,8 +287,9 @@ class ImportOrimatis(Command):
 
     def get_or_create_pinh_transform(self, node, source, target):
         node = xmlutil.child(node, 'geometry/intrinseque/sensor')
+        name = '{}#intrinseque'.format(self.transfotree)
         return self.api.get_or_create_transfo(
-            'projection', 'pinhole', source, target,
+            name, 'projective_pinhole', source, target,
             description='imported from "{}"'.format(self.basename),
             parameters={
                 'focal': xmlutil.child_float(node, 'ppa/focale'),
@@ -297,8 +302,9 @@ class ImportOrimatis(Command):
 
     def get_or_create_sphe_transform(self, node, source, target):
         node = xmlutil.child(node, 'geometry/intrinseque/spherique')
+        name = '{}#intrinseque'.format(self.transfotree)
         return self.api.get_or_create_transfo(
-            'projection', 'spherical', source, target,
+            name, 'cartesian_to_spherical', source, target,
             description='imported from "{}"'.format(self.basename),
             parameters={
                 'ppa': xmlutil.child_floats(node, 'ppa/[c,l]'),
@@ -311,8 +317,9 @@ class ImportOrimatis(Command):
 
     def get_or_create_dist_transform(self, node, source, target):
         node = xmlutil.child(node, 'geometry/intrinseque/sensor')
+        name = '{}#distortion'.format(self.transfotree)
         return self.api.get_or_create_transfo(
-            'distortion', 'poly_radial_7', source, target,
+            name, 'poly_radial_7', source, target,
             description='imported from "{}"'.format(self.basename),
             parameters={
                 'C': xmlutil.child_floats(node, 'distortion/pps/[c,l]'),
@@ -331,8 +338,9 @@ class ImportOrimatis(Command):
 
         if node.find('rotation/quaternion') is not None:
             quat = xmlutil.child_floats(node, 'rotation/quaternion/[x,y,z,w]')
+            name = '{}#extrinseque#quaternion'.format(self.transfotree)
             transfo = self.api.get_or_create_transfo(
-                'pose_quat', 'affine_quat', source, target,
+                name, 'affine_quat', source, target,
                 description='imported from "{}"'.format(self.basename),
                 parameters={'quat': quat, 'vec3': p},
                 tdate=self.tdate,
@@ -355,8 +363,9 @@ class ImportOrimatis(Command):
             matrix.extend(l3)
             matrix.append(p[2])
 
+            name = '{}#extrinseque#mat3d'.format(self.transfotree)
             transfo = self.api.get_or_create_transfo(
-                'pose_mat', 'affine_mat', source, target,
+                name, 'affine_mat4x3', source, target,
                 description='imported from "{}"'.format(self.basename),
                 parameters={'mat4x3': matrix},
                 tdate=self.tdate,

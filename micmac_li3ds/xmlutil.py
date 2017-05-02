@@ -48,7 +48,7 @@ def child_float(parent, name, default=None):
 
 
 def children_float(parent, name):
-    nodes = children(parent, name)
+    nodes = parent.findall(name)
     try:
         return [float(node.text) for node in nodes]
     except ValueError:
