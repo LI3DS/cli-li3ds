@@ -1,16 +1,14 @@
 import requests
-import os
 import json
 import getpass
-
-os.environ['NO_PROXY'] = 'localhost'
 
 
 class Api(object):
 
-    def __init__(self, api_url, api_key, log, indent):
+    def __init__(self, api_url, api_key, no_proxy, log, indent):
         self.api_url = None
         self.headers = None
+        self.proxies = None
         self.staging = None
         self.log = log
         self.indent = indent
@@ -36,6 +34,7 @@ class Api(object):
                 'Accept': 'application/json',
                 'X-API-KEY': api_key
                 }
+            self.proxies = {'http': None} if no_proxy else None
         else:
             self.log.info("# Staging mode")
             self.log.info("use -u/-k options to provide an api url and key).")
@@ -59,7 +58,8 @@ class Api(object):
             return obj
 
         url = self.api_url + '/{}s/'.format(typ.format(**parent))
-        resp = requests.post(url, json=obj, headers=self.headers)
+        resp = requests.post(
+            url, json=obj, headers=self.headers, proxies=self.proxies)
         if resp.status_code == 201:
             objs = resp.json()
             return objs[0]
@@ -73,7 +73,7 @@ class Api(object):
             return objs[obj_id] if obj_id < len(objs) else None
 
         url = self.api_url + '/{}s/{:d}/'.format(typ.format(**parent), obj_id)
-        resp = requests.get(url, headers=self.headers)
+        resp = requests.get(url, headers=self.headers, proxies=self.proxies)
         if resp.status_code == 200:
             objs = resp.json()
             return objs[0]
@@ -90,7 +90,7 @@ class Api(object):
             return obj[0] if obj else None
 
         url = self.api_url + '/{}s/'.format(typ.format(**parent))
-        resp = requests.get(url, headers=self.headers)
+        resp = requests.get(url, headers=self.headers, proxies=self.proxies)
         if resp.status_code == 200:
             objs = resp.json()
             try:
@@ -110,7 +110,7 @@ class Api(object):
             return obj[0] if obj else None
 
         url = self.api_url + '/{}s/'.format(typ.format(**parent))
-        resp = requests.get(url, headers=self.headers)
+        resp = requests.get(url, headers=self.headers, proxies=self.proxies)
         if resp.status_code == 200:
             objs = resp.json()
             try:
@@ -128,7 +128,7 @@ class Api(object):
             return self.staging[typ]
 
         url = self.api_url + '/{}s/'.format(typ.format(**parent))
-        resp = requests.get(url, headers=self.headers)
+        resp = requests.get(url, headers=self.headers, proxies=self.proxies)
         if resp.status_code == 200:
             objs = resp.json()
             return objs

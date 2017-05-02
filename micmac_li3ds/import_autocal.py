@@ -37,6 +37,9 @@ class ImportAutocal(Command):
             '--api-key', '-k',
             help='the li3ds API key (optional)')
         parser.add_argument(
+            '--no-proxy', action='store_true',
+            help='disable all proxy settings')
+        parser.add_argument(
             '--sensor-id', '-s',
             type=int,
             help='the camera sensor id (optional)')
@@ -80,8 +83,8 @@ class ImportAutocal(Command):
         self.validity_start = parsed_args.validity_start
         self.validity_end = parsed_args.validity_end
         self.indent = parsed_args.indent
-        self.api = api.Api(
-            parsed_args.api_url, parsed_args.api_key, self.log, self.indent)
+        self.api = api.Api(parsed_args.api_url, parsed_args.api_key,
+                           parsed_args.no_proxy, self.log, parsed_args.indent)
 
         root = xmlutil.root(self.filename, 'ExportAPERO')
         node = xmlutil.child(root, 'CalibrationInternConique')
