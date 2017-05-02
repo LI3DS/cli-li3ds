@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 echo "==================="
 echo "| mm2li testsuite |"
@@ -19,6 +19,8 @@ if [ "$#" != "0" ]; then
 	fi
 fi
 
+set -x #echo on
+
 mm2li import-autocal  $MM2LIARGS $@ data/AutoCal_Foc-12000_Cam-Caml024_20161205a.xml
 mm2li import-autocal  $MM2LIARGS $@ data/AutoCal_Foc-12000_Cam-Caml025_20161205a.xml
 mm2li import-autocal  $MM2LIARGS $@ data/AutoCal_Foc-15000_Cam-Caml023_20161205a.xml
@@ -31,6 +33,12 @@ mm2li import-autocal  $MM2LIARGS $@ data/NewCalibD3X-pix.xml
 
 mm2li import-blinis   $MM2LIARGS $@ data/blinis_20161205.xml
 
-mm2li import-orimatis $MM2LIARGS $@ data/spheric.ori.xml -n "panorama" -c "config_s"
-mm2li import-orimatis $MM2LIARGS $@ data/conic.ori.xml  -n "Pike37_1" -c "config_1"
-mm2li import-orimatis $MM2LIARGS $@ data/conic2.ori.xml -n "Pike37_2" -c "config_2"
+mm2li import-orimatis $MM2LIARGS $@ data/spheric.ori.xml
+mm2li import-orimatis $MM2LIARGS $@ data/conic.ori.xml
+mm2li import-orimatis $MM2LIARGS $@ data/conic2.ori.xml
+
+mm2li import-ori      $MM2LIARGS $@ data/Orientation-00.xml
+mm2li import-ori      $MM2LIARGS $@ data/Orientation-1.xml
+mm2li import-ori      $MM2LIARGS $@ data/OriFrancesco.xml
+mm2li import-ori      $MM2LIARGS $@ data/TestOri-1.xml
+mm2li import-ori      $MM2LIARGS $@ data/TestOri-2.xml
