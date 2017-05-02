@@ -2,8 +2,9 @@ import os
 import logging
 
 from cliff.command import Command
+from argparse import Namespace
 
-from . import api
+from . import api as li3ds
 from . import xmlutil
 
 
@@ -17,16 +18,6 @@ class ImportBlinis(Command):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.api = None
-        self.sensor_id = None
-        self.sensor_name = None
-        self.owner = None
-        self.tdate = None
-        self.validity_start = None
-        self.validity_end = None
-        self.filename = None
-        self.basename = None
-        self.indent = None
 
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
@@ -48,6 +39,9 @@ class ImportBlinis(Command):
             '--sensor-name', '-n',
             help='the sensor group name (optional)')
         parser.add_argument(
+            '--transfotree',
+            help='the transfotree name (optional)')
+        parser.add_argument(
             '--owner', '-o',
             help='the data owner (optional, default is unix username)')
         parser.add_argument(
@@ -66,91 +60,95 @@ class ImportBlinis(Command):
             '--indent', type=int,
             help='number of spaces for pretty print indenting')
         parser.add_argument(
-            'filename',
-            help='the blinis file')
+            'filenames', nargs='+',
+            help='the list of blinis filenames')
         return parser
 
-    def take_action(self, parsed_args):
+    def take_action(self, args):
         """
         Create or update a sensor group.
         """
+        api = li3ds.Api(args.api_url, args.api_key, args.no_proxy,
+                        self.log, args.indent)
+        for filename in args.filename:
+            self.log.info('Importing {}'.format(filename))
+            import_blinis(api, args, filename)
+        self.log.info('Success!\n')
 
-        self.sensor_id = parsed_args.sensor_id
-        self.sensor_name = parsed_args.sensor_name
-        self.filename = parsed_args.filename
-        self.basename = os.path.basename(self.filename)
-        self.owner = parsed_args.owner
-        self.tdate = parsed_args.calibration_date
-        self.validity_start = parsed_args.validity_start
-        self.validity_end = parsed_args.validity_end
-        self.indent = parsed_args.indent
-        self.api = api.Api(parsed_args.api_url, parsed_args.api_key,
-                           parsed_args.no_proxy, self.log, parsed_args.indent)
 
-        root = xmlutil.root(self.filename, 'StructBlockCam')
-        nodes = xmlutil.children(root, 'LiaisonsSHC/ParamOrientSHC')
+def import_blinis(api, args, filename):
+    args = Namespace(**vars(args))
+    args.basename = os.path.basename(filename)
+    args.transfotree = args.transfotree or args.basename
+    args.sensor_name = args.sensor_name or args.basename
 
-        sensor = self.get_or_create_sensor_group(root)
-        base_ref = self.get_or_create_base_referential(root, sensor)
+    root = xmlutil.root(filename, 'StructBlockCam')
+    nodes = xmlutil.children(root, 'LiaisonsSHC/ParamOrientSHC')
 
-        transfos = []
-        for node in nodes:
-            ref = self.get_or_create_referential(node, sensor)
-            transfo = self.get_or_create_transform(node, base_ref, ref)
-            transfos.append(transfo)
+    sensor = import_sensor_group(api, args, root)
+    base_ref = import_base_referential(api, args, root, sensor)
 
-        self.get_or_create_transfotree(root, transfos)
+    transfos = []
+    for node in nodes:
+        ref = import_referential(api, args, node, sensor)
+        transfo = import_transform(api, args, node, base_ref, ref)
+        transfos.append(transfo)
 
-        self.log.info('Success!')
+    import_transfotree(api, args, root, transfos)
 
-    def get_or_create_sensor_group(self, node):
-        name = xmlutil.child(node, 'KeyIm2TimeCam').text.strip()
-        return self.api.get_or_create_sensor(
-            name=self.sensor_name or name,
-            sensor_type='group',
-            sensor_id=self.sensor_id,
-            description='imported from "{}"'.format(self.basename),
-        )
 
-    def get_or_create_base_referential(self, node, sensor):
-        description = 'base referential for sensor group {:d}, ' \
-            'imported from "{}"'.format(sensor['id'], self.basename)
-        return self.api.get_or_create_referential(
-            name='base',
-            sensor=sensor,
-            description=description,
-            root=True,
-        )
+def import_sensor_group(api, args, node):
+    return api.get_or_create_sensor(
+        name=args.sensor_name,
+        sensor_type='group',
+        sensor_id=args.sensor_id,
+        description='imported from "{}"'.format(args.basename),
+    )
 
-    def get_or_create_referential(self, node, sensor):
-        description = 'referential for sensor group {:d}, ' \
-                      'imported from "{}"'.format(
-                          sensor['id'], self.basename)
-        return self.api.get_or_create_referential(
-            name=xmlutil.child(node, 'IdGrp').text.strip(),
-            sensor=sensor,
-            description=description,
-        )
 
-    def get_or_create_transform(self, node, source, target):
-        matrix = []
-        p = xmlutil.child_floats_split(node, 'Vecteur')
-        for i, l in enumerate(('Rot/L1', 'Rot/L2', 'Rot/L3')):
-            matrix.extend(xmlutil.child_floats_split(node, l))
-            matrix.append(p[i])
+def import_base_referential(api, args, node, sensor):
+    description = 'base referential for sensor group {:d}, ' \
+        'imported from "{}"'.format(sensor['id'], args.basename)
+    return api.get_or_create_referential(
+        name='base',
+        sensor=sensor,
+        description=description,
+        root=True,
+    )
 
-        return self.api.get_or_create_transfo(
-            target['name'], 'affine_mat', source, target,
-            description='imported from "{}"'.format(self.basename),
-            parameters={'mat4x3': matrix},
-            tdate=self.tdate,
-            validity_start=self.validity_start,
-            validity_end=self.validity_end,
-        )
 
-    def get_or_create_transfotree(self, node, transfos):
-        return self.api.get_or_create_transfotree(
-            name=self.basename,
-            transfos=transfos,
-            owner=self.owner,
-        )
+def import_referential(api, args, node, sensor):
+    description = 'referential for sensor group {:d}, ' \
+                  'imported from "{}"'.format(
+                      sensor['id'], args.basename)
+    return api.get_or_create_referential(
+        name=xmlutil.child(node, 'IdGrp').text.strip(),
+        sensor=sensor,
+        description=description,
+    )
+
+
+def import_transform(api, args, node, source, target):
+    matrix = []
+    p = xmlutil.child_floats_split(node, 'Vecteur')
+    for i, l in enumerate(('Rot/L1', 'Rot/L2', 'Rot/L3')):
+        matrix.extend(xmlutil.child_floats_split(node, l))
+        matrix.append(p[i])
+
+    name = '{}#{}'.format(args.transfotree, target['name'])
+    return api.get_or_create_transfo(
+        name, 'affine_mat4x3', source, target,
+        description='imported from "{}"'.format(args.basename),
+        parameters={'mat4x3': matrix},
+        tdate=args.calibration_date,
+        validity_start=args.validity_start,
+        validity_end=args.validity_end,
+    )
+
+
+def import_transfotree(api, args, node, transfos):
+    return api.get_or_create_transfotree(
+        name=args.transfotree,
+        transfos=transfos,
+        owner=args.owner,
+    )
