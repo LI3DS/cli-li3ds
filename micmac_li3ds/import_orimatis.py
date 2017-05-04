@@ -21,15 +21,7 @@ class ImportOrimatis(Command):
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
         parser = super().get_parser(prog_name)
-        parser.add_argument(
-            '--api-url', '-u',
-            help='the li3ds API URL (optional)')
-        parser.add_argument(
-            '--api-key', '-k',
-            help='the li3ds API key (optional)')
-        parser.add_argument(
-            '--no-proxy', action='store_true',
-            help='disable all proxy settings')
+        Api.add_arguments(parser)
         parser.add_argument(
             '--sensor-id', '-i',
             type=int,
@@ -47,9 +39,6 @@ class ImportOrimatis(Command):
             '--config', '-c',
             help='the configuration name (optional)')
         parser.add_argument(
-            '--owner', '-o',
-            help='the data owner (optional, default is unix username)')
-        parser.add_argument(
             '--calibration-datetime', '-d',
             help='the calibration date (optional, default is the current '
                  'local date and time')
@@ -65,10 +54,7 @@ class ImportOrimatis(Command):
             help='validity end date for transfos (optional, '
                  'default is valid until forever)')
         parser.add_argument(
-            '--indent', type=int,
-            help='number of spaces for pretty print indenting')
-        parser.add_argument(
-            'filenames', nargs='+',
+            'filename', nargs='+',
             help='the list of orimatis filenames')
         return parser
 
@@ -76,8 +62,7 @@ class ImportOrimatis(Command):
         """
         Create or update a camera sensor.
         """
-        self.api = Api.Api(parsed_args.api_url, parsed_args.api_key,
-                           parsed_args.no_proxy, self.log, parsed_args.indent)
+        self.api = Api.Api(parsed_args, self.log)
 
         args = {
             'sensor': {
@@ -120,7 +105,7 @@ class ImportOrimatis(Command):
             'session': {'*': {}},
             'datasource': {'*': {}},
         }
-        for filename in parsed_args.filenames:
+        for filename in parsed_args.filename:
             self.log.info('Importing {}'.format(filename))
             self.get_or_create(self.api, filename, args)
             self.log.info('Success!\n')

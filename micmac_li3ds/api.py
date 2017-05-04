@@ -2,16 +2,35 @@ import requests
 import json
 import getpass
 
+def add_arguments(parser):
+    group = parser.add_argument_group(
+        'API arguments',
+        'API connection settings, dry run in staging mode if not provided')
+    group.add_argument(
+        '--api-url', '-u',
+        help='the li3ds API URL (optional)')
+    group.add_argument(
+        '--api-key', '-k',
+        help='the li3ds API key (required if --api-url is provided)')
+    group.add_argument(
+        '--no-proxy', action='store_true',
+        help='disable all proxy settings')
+    parser.add_argument(
+       '--indent', type=int,
+       help='number of spaces for pretty print indenting')
+    parser.add_argument(
+       '--owner', '-o',
+       help='the data owner (optional, default is unix username)')
 
 class Api(object):
 
-    def __init__(self, api_url, api_key, no_proxy, log, indent):
-        self.api_url = None
+    def __init__(self, args, log):
+        self.api_url = args.api_url
         self.headers = None
         self.proxies = None
         self.staging = None
         self.log = log
-        self.indent = indent
+        self.indent = args.indent
         self.ids = {
             'transfo': ['name', 'source', 'target'],
             'transfos/type': ['name'],
@@ -25,16 +44,16 @@ class Api(object):
             'platforms/{id}/config': ['name'],
         }
 
-        if api_url:
-            if not api_key:
+        if args.api_url:
+            if not args.api_key:
                 err = 'Error: no api key provided'
                 raise ValueError(err)
-            self.api_url = api_url.rstrip('/')
+            self.api_url = args.api_url.rstrip('/')
             self.headers = {
                 'Accept': 'application/json',
-                'X-API-KEY': api_key
+                'X-API-KEY': args.api_key
                 }
-            self.proxies = {'http': None} if no_proxy else None
+            self.proxies = {'http': None} if args.no_proxy else None
         else:
             self.log.info('! Staging mode (use -u/-k options '
                           'to provide an api url and key)')
