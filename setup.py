@@ -7,10 +7,9 @@ here = os.path.abspath(os.path.dirname(__file__))
 
 requirements = (
     'requests==2.13.0',
-    'cliff==2.4.0',
+    'cliff==2.6.0',
     'requests==2.13.0',
     'pytz==2017.2',
-    'pbr>=2.0.0',
 )
 
 dev_requirements = (
