@@ -9,26 +9,6 @@ from . import api as Api
 from . import xmlutil
 
 
-def _update_obj(args, metadata, obj, type_):
-    if type_ not in ['datasource']:
-        obj.setdefault('name', '{basename}')
-    if type_ not in ['datasource', 'transfotree', 'project', 'session']:
-        obj.setdefault('description', 'Imported from "{basename}"')
-    if type_ in args:
-        obj.update({k: v for k, v in args[type_].items() if v})
-    for key in obj:
-        if obj[key]:
-            try:
-                obj[key] = obj[key].format(**metadata)
-            except KeyError as e:
-                err = 'metadata {} not available for {}/{}="{}"'
-                raise KeyError(err.format(e, type_, key, obj[key]))
-
-
-def _isoformat(date):
-    return date.isoformat() if date else None
-
-
 class ImportOrimatis(Command):
     """ import an Ori-Matis file
     """
@@ -139,9 +119,9 @@ class ApiObjs(Api.ApiObjs):
             'calibration':     calibration,
             'acquisition':     acquisition,
             'date':            date,
-            'calibration_iso': _isoformat(calibration),
-            'acquisition_iso': _isoformat(acquisition),
-            'date_iso':        _isoformat(date),
+            'calibration_iso': Api.isoformat(calibration),
+            'acquisition_iso': Api.isoformat(acquisition),
+            'date_iso':        Api.isoformat(date),
             'numero':    xmlutil.child_int(stereopolis, 'numero'),
             'section':   xmlutil.child_int(stereopolis, 'section'),
             'session':   xmlutil.child_int(stereopolis, 'session'),
@@ -174,16 +154,16 @@ class ApiObjs(Api.ApiObjs):
         transfotree = {}
         config = {}
 
-        _update_obj(args, metadata, sensor, 'sensor')
-        _update_obj(args, metadata, referential, 'referential')
-        _update_obj(args, metadata, transfo_ext, 'transfo_ext')
-        _update_obj(args, metadata, transfo_int, 'transfo_int')
-        _update_obj(args, metadata, transfotree, 'transfotree')
-        _update_obj(args, metadata, project, 'project')
-        _update_obj(args, metadata, platform, 'platform')
-        _update_obj(args, metadata, session, 'session')
-        _update_obj(args, metadata, datasource, 'datasource')
-        _update_obj(args, metadata, config, 'config')
+        Api.update_obj(args, metadata, sensor, 'sensor')
+        Api.update_obj(args, metadata, referential, 'referential')
+        Api.update_obj(args, metadata, transfo_ext, 'transfo_ext')
+        Api.update_obj(args, metadata, transfo_int, 'transfo_int')
+        Api.update_obj(args, metadata, transfotree, 'transfotree')
+        Api.update_obj(args, metadata, project, 'project')
+        Api.update_obj(args, metadata, platform, 'platform')
+        Api.update_obj(args, metadata, session, 'session')
+        Api.update_obj(args, metadata, datasource, 'datasource')
+        Api.update_obj(args, metadata, config, 'config')
 
         # get or create sensor
         self.sensor = Sensor(sensor, node, metadata)
@@ -263,8 +243,7 @@ class Referential:
             srid = 2154
 
         return Api.Referential(
-            sensor,
-            referential,
+            sensor, referential,
             name='{systeme}/{grid_alti}'.format(**metadata),
             srid=srid
         )

@@ -392,3 +392,27 @@ class Config(ApiObj):
         self.arrays = {'transfo_trees': transfotrees}
         self.obj.setdefault('owner', getpass.getuser())
         self.parent = platform
+
+
+def update_obj(args, metadata, obj, type_):
+    if type_ not in ['datasource']:
+        obj.setdefault('name', '{basename}')
+    if type_ not in ['datasource', 'transfotree', 'project', 'session']:
+        obj.setdefault('description', 'Imported from "{basename}"')
+    if type_ in args:
+        obj.update({k: v for k, v in args[type_].items() if v})
+    for key in obj:
+        if obj[key]:
+            try:
+                obj[key] = obj[key].format(**metadata)
+            except AttributeError:
+                continue
+            except KeyError as e:
+                err = 'metadata {} not available for {}/{}="{}"'
+                raise KeyError(err.format(e, type_, key, obj[key]))
+
+
+def isoformat(date):
+    return date.isoformat() if date else None
+
+
