@@ -2,6 +2,7 @@ import requests
 import json
 import getpass
 
+
 def add_arguments(parser):
     group = parser.add_argument_group(
         'API arguments',
@@ -21,6 +22,7 @@ def add_arguments(parser):
     parser.add_argument(
        '--owner', '-o',
        help='the data owner (optional, default is unix username)')
+
 
 class Api(object):
 
@@ -215,6 +217,13 @@ class Api(object):
         return obj
 
 
+class ApiObjs:
+    def get_or_create(self, api):
+        for obj in self.__dict__.values():
+            if isinstance(obj, ApiObj):
+                obj.get_or_create(api)
+
+
 class ApiObj:
     def __init__(self, type_, keys, obj=None, **kwarg):
         self.published = False
@@ -279,6 +288,7 @@ class Sensor(ApiObj):
         keys = ['id', 'name', 'type', 'description',
                 'serial_number', 'specifications']
         super().__init__('sensor', keys, obj, **kwarg)
+        self.obj.setdefault('serial_number', '')
 
 
 class Referential(ApiObj):

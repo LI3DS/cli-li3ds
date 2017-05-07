@@ -9,6 +9,26 @@ from . import api as Api
 from . import xmlutil
 
 
+def _update_obj(args, metadata, obj, type_):
+    if type_ not in ['datasource']:
+        obj.setdefault('name', '{basename}')
+    if type_ not in ['datasource', 'transfotree', 'project', 'session']:
+        obj.setdefault('description', 'Imported from "{basename}"')
+    if type_ in args:
+        obj.update({k: v for k, v in args[type_].items() if v})
+    for key in obj:
+        if obj[key]:
+            try:
+                obj[key] = obj[key].format(**metadata)
+            except KeyError as e:
+                err = 'metadata {} not available for {}/{}="{}"'
+                raise KeyError(err.format(e, type_, key, obj[key]))
+
+
+def _isoformat(date):
+    return date.isoformat() if date else None
+
+
 class ImportOrimatis(Command):
     """ import an Ori-Matis file
     """
@@ -39,11 +59,10 @@ class ImportOrimatis(Command):
             '--config', '-c',
             help='the configuration name (optional)')
         parser.add_argument(
-            '--calibration-datetime', '-d',
-            help='the calibration date (optional, default is the current '
-                 'local date and time')
+            '--calibration', '-d',
+            help='the calibration datetime (optional')
         parser.add_argument(
-            '--acquisition-datetime', '-a',
+            '--acquisition', '-a',
             help='the acquisition datetime (optional)')
         parser.add_argument(
             '--validity-start',
@@ -62,82 +81,45 @@ class ImportOrimatis(Command):
         """
         Create or update a camera sensor.
         """
-        self.api = Api.Api(parsed_args, self.log)
+        api = Api.Api(parsed_args, self.log)
 
         args = {
             'sensor': {
-                '*': {
-                    'type': 'camera',
-                    'name': parsed_args.sensor,
-                    'id': parsed_args.sensor_id,
-                },
+                'name': parsed_args.sensor,
+                'id': parsed_args.sensor_id,
             },
-            'transfo': {
-                '*#extrinseque#*': {
-                    'name': parsed_args.transfo,
-                    'validity_start': parsed_args.acquisition_datetime,
-                    'validity_end': parsed_args.acquisition_datetime,
-                },
-                '*#intrinseque#*': {
-                    'name': parsed_args.transfo,
-                    'tdate': parsed_args.calibration_datetime,
-                    'validity_start': parsed_args.validity_start,
-                    'validity_end': parsed_args.validity_end,
-                },
+            'transfo_ext': {
+                'name': parsed_args.transfo,
+                'validity_start': parsed_args.acquisition,
+                'validity_end': parsed_args.acquisition,
+            },
+            'transfo_int': {
+                'name': parsed_args.transfo,
+                'tdate': parsed_args.calibration,
+                'validity_start': parsed_args.validity_start,
+                'validity_end': parsed_args.validity_end,
             },
             'transfotree': {
-                '*': {
                     'name': parsed_args.transfotree,
                     'owner': parsed_args.owner,
-                },
             },
             'config': {
-                '*': {
                     'name': parsed_args.config,
                     'owner': parsed_args.owner,
-                },
             },
-            'referential': {'*': {}},
-            'transfos/type': {'*': {}},
-            'platforms/{id}/config': {'*': {}},
-            'platform': {'*': {}},
-            'project': {'*': {}},
-            'session': {'*': {}},
-            'datasource': {'*': {}},
         }
         for filename in parsed_args.filename:
             self.log.info('Importing {}'.format(filename))
-            self.get_or_create(self.api, filename, args)
+            ApiObjs(args, filename).get_or_create(api)
             self.log.info('Success!\n')
 
-    @staticmethod
-    def get_or_create(api, filename, args):
+
+class ApiObjs(Api.ApiObjs):
+    def __init__(self, args, filename):
+        # open XML file
         root = xmlutil.root(filename, 'orientation')
         xmlutil.child_check(root, 'version', '1.0')
 
-        # copy and set defaults to the object templates
-        args = args.copy()
-        basename = os.path.basename(filename)
-        description = 'Imported from "{}"'.format(basename)
-        calibration_datetime = ImportOrimatis.get_calibration_datetime(root)
-        acquisition_datetime = ImportOrimatis.get_acquisition_datetime(root)
-        for type_ in args:
-            arg = args[type_].copy()
-            for key in arg:
-                arg[key] = {k: v for k, v in arg[key].items() if v}
-                if type_ in ['transfo', 'transfos/type',
-                             'sensor', 'referential']:
-                    arg[key].setdefault('description', description)
-                if type_ not in ['datasource']:
-                    arg[key].setdefault('name', basename)
-                if key == '*#extrinseque#*':
-                    arg[key].setdefault('validity_start', acquisition_datetime)
-                    arg[key].setdefault('validity_end', acquisition_datetime)
-                elif key == '*#intrinseque#*':
-                    arg[key].setdefault('tdate', calibration_datetime)
-            args[type_] = arg
-
-        # get or create sensor
         sensor_node = root.find('geometry/intrinseque/sensor')
         spherique_node = root.find('geometry/intrinseque/spherique')
         node = sensor_node or spherique_node
@@ -146,33 +128,92 @@ class ImportOrimatis(Command):
                 '("sensor" or "spherique")'
             raise RuntimeError(err)
 
-        sensor = Sensor(args, root, node).get_or_create(api)
+        # retrieve metadata
+        stereopolis = xmlutil.child(root, 'auxiliarydata/stereopolis')
+        extrinseque = xmlutil.child(root, 'geometry/extrinseque')
+        calibration = ApiObjs.get_calibration_datetime(root)
+        acquisition = ApiObjs.get_acquisition_datetime(root)
+        date = xmlutil.finddate(stereopolis, 'date', ['%y%m%d'])
+        metadata = {
+            'basename': os.path.basename(filename),
+            'calibration':     calibration,
+            'acquisition':     acquisition,
+            'date':            date,
+            'calibration_iso': _isoformat(calibration),
+            'acquisition_iso': _isoformat(acquisition),
+            'date_iso':        _isoformat(date),
+            'numero':    xmlutil.child_int(stereopolis, 'numero'),
+            'section':   xmlutil.child_int(stereopolis, 'section'),
+            'session':   xmlutil.child_int(stereopolis, 'session'),
+            'flatfield': xmlutil.findtext(stereopolis, 'flatfield_name'),
+            'chantier':  xmlutil.findtext(stereopolis, 'chantier'),
+            'position':  xmlutil.findtext(stereopolis, 'position'),
+            'systeme':   xmlutil.findtext(extrinseque, 'systeme'),
+            'grid_alti': xmlutil.findtext(extrinseque, 'grid_alti'),
+            'image':     xmlutil.findtext(root, 'auxiliarydata/image_name'),
+            'sensor':    xmlutil.findtext(node, 'name'),
+            'serial':    xmlutil.findtext(node, 'serial_number'),
+        }
+
+        # generate template objects
+        sensor = {
+            'type': 'camera',
+            'name': '{sensor}',
+            'serial_number': '{serial}',
+        }
+        transfo_ext = {
+            'validity_start': '{acquisition_iso}',
+            'validity_end': '{acquisition_iso}',
+        }
+        transfo_int = {'tdate': '{calibration_iso}'}
+        referential = {'name': '{position}'}
+        platform = {'name': 'Stereopolis II'}
+        project = {'name': '{chantier}'}
+        session = {'name': '{date:%y%m%d}/{session}/{section}'}
+        datasource = {'uri': '{image}.tif'}
+        transfotree = {}
+        config = {}
+
+        _update_obj(args, metadata, sensor, 'sensor')
+        _update_obj(args, metadata, referential, 'referential')
+        _update_obj(args, metadata, transfo_ext, 'transfo_ext')
+        _update_obj(args, metadata, transfo_int, 'transfo_int')
+        _update_obj(args, metadata, transfotree, 'transfotree')
+        _update_obj(args, metadata, project, 'project')
+        _update_obj(args, metadata, platform, 'platform')
+        _update_obj(args, metadata, session, 'session')
+        _update_obj(args, metadata, datasource, 'datasource')
+        _update_obj(args, metadata, config, 'config')
+
+        # get or create sensor
+        self.sensor = Sensor(sensor, node, metadata)
 
         # get or create world, euclidean and rawImage referentials
-        ref_w = Referential.world(sensor, args, root).get_or_create(api)
-        ref_e = Referential.eucli(sensor, args, root).get_or_create(api)
-        ref_i = Referential.image(sensor, args).get_or_create(api)
+        self.ref_w = Referential.world(self.sensor, referential, metadata)
+        self.ref_e = Referential.eucli(self.sensor, referential)
+        self.ref_i = Referential.image(self.sensor, referential)
 
         # get or create matr, quat, pinh, dist or sphe transforms
-        matr = Transfo.matr(ref_w, ref_e, args, root).get_or_create(api)
-        quat = Transfo.quat(ref_w, ref_e, args, root).get_or_create(api)
+        self.matr = Transfo.matr(self.ref_w, self.ref_e, transfo_ext, root)
+        self.quat = Transfo.quat(self.ref_w, self.ref_e, transfo_ext, root)
 
         if sensor_node:
-            ref_u = Referential.undis(sensor, args).get_or_create(api)
-            pinh = Transfo.pinh(ref_e, ref_u, args, root).get_or_create(api)
-            dist = Transfo.dist(ref_u, ref_i, args, root).get_or_create(api)
-            transfos = [quat or matr, pinh, dist]
+            self.ref_u = Referential.undis(self.sensor, referential)
+            self.pinh = Transfo.pinh(self.ref_e, self.ref_u, transfo_int, root)
+            self.dist = Transfo.dist(self.ref_u, self.ref_i, transfo_int, root)
+            transfos = [self.quat or self.matr, self.pinh, self.dist]
 
         else:
-            sphe = Transfo.sphe(ref_e, ref_i, args, root).get_or_create(api)
-            transfos = [quat or matr, sphe]
+            self.sphe = Transfo.sphe(self.ref_e, self.ref_i, transfo_int, root)
+            transfos = [self.quat or self.matr, self.sphe]
 
-        transfotree = Transfotree(transfos, args).get_or_create(api)
-        project = Project(args, root).get_or_create(api)
-        platform = Platform(args).get_or_create(api)
-        session = Session(project, platform, args, root).get_or_create(api)
-        Datasource(session, ref_i, args, root).get_or_create(api)
-        Config(platform, [transfotree], args).get_or_create(api)
+        self.transfotree = Api.Transfotree(transfos, transfotree)
+        self.project = Api.Project(project)
+        self.platform = Api.Platform(platform)
+        self.session = Api.Session(self.project, self.platform, session)
+        self.datasource = Api.Datasource(self.session, self.ref_i, datasource)
+        self.config = Api.Config(self.platform, [self.transfotree], config)
+        super().__init__()
 
     @staticmethod
     def get_acquisition_datetime(root):
@@ -186,101 +227,49 @@ class ImportOrimatis(Command):
         x = xmlutil.child_float(node, 'second')
         S = int(x)
         s = int(1000000*(x-S))
-        time_system = xmlutil.child(node, 'time_system').text.strip()
-        if time_system != 'UTC':
-            err = 'Error: supported time_system is "UTC"'
-            raise RuntimeError(err)
-
-        return datetime.datetime(Y, m, d, H, M, S, s, pytz.UTC).isoformat()
+        xmlutil.child_check(node, 'time_system', 'UTC')
+        return datetime.datetime(Y, m, d, H, M, S, s, pytz.UTC)
 
     @staticmethod
     def get_calibration_datetime(root):
-        date = root.find('geometry/intrinseque/sensor/calibration_date')
-        if date is None:
-            return None
-        try:
-            date = datetime.datetime.strptime(date.text.strip(), '%d-%m-%Y')
-        except:
-            date = datetime.datetime.strptime(date.text.strip(), '%m-%Y')
-        return date.isoformat()
-
-    @staticmethod
-    def get_flatfield(root):
-        flatfield = root.findtext('auxiliarydata/stereopolis/flatfield_name')
-        return flatfield.strip() if flatfield else None
-
-    @staticmethod
-    def get_date(root):
-        date = xmlutil.child(root, 'auxiliarydata/stereopolis/date')
-        return datetime.datetime.strptime(date.text.strip(), '%y%m%d')
-
-    @staticmethod
-    def get_project(root):
-        tag = 'auxiliarydata/stereopolis/chantier'
-        return xmlutil.child(root, tag).text.strip()
-
-    @staticmethod
-    def get_position(root):
-        tag = 'auxiliarydata/stereopolis/position'
-        return xmlutil.child(root, tag).text.strip()
-
-    @staticmethod
-    def get_session(root):
-        return xmlutil.child_int(root, 'auxiliarydata/stereopolis/session')
-
-    @staticmethod
-    def get_section(root):
-        return xmlutil.child_int(root, 'auxiliarydata/stereopolis/section')
-
-    @staticmethod
-    def get_numero(root):
-        return xmlutil.child_int(root, 'auxiliarydata/stereopolis/numero')
+        tag = 'geometry/intrinseque/sensor/calibration_date'
+        date = xmlutil.finddate(root, tag, ['%d-%m-%Y', '%m-%Y'])
+        return date.replace(tzinfo=pytz.UTC) if date else None
 
 
 class Sensor(Api.Sensor):
-    def __init__(self, args, root, node):
-        sensor = args['sensor']['*']
+    def __init__(self, sensor, node, metadata):
         pixel_size = None
-        serial_number = None
-
         if node.tag == 'sensor':
-            sensor.setdefault('name', xmlutil.child(node, 'name').text.strip())
             pixel_size = xmlutil.child_float(node, 'pixel_size')
-            serial_number = xmlutil.child(node, 'serial_number').text.strip()
 
         image_size = xmlutil.child_floats(node, 'image_size/[width,height]')
         super().__init__(
             sensor,
-            type='camera',
-            serial_number=serial_number,
             specifications={
                 'image_size': image_size,
                 'pixel_size': pixel_size,
-                'flatfield': ImportOrimatis.get_flatfield(root),
+                'flatfield': metadata.get('flatfield'),
             },
         )
 
 
 class Referential:
-    def world(sensor, args, root):
-        referential = args['referential']['*']
-        node = xmlutil.child(root, 'geometry/extrinseque')
-        systeme = xmlutil.child(node, 'systeme').text.strip()
-        grid_alti = xmlutil.child(node, 'grid_alti').text.strip()
-
+    def world(sensor, referential, metadata):
         srid = 0
+        systeme = metadata.get('systeme')
+        grid_alti = metadata.get('grid_alti')
         if systeme is 'Lambert93' and grid_alti is 'RAF09':
             srid = 2154
 
         return Api.Referential(
             sensor,
             referential,
-            name='{}/{}'.format(systeme, grid_alti),
+            name='{systeme}/{grid_alti}'.format(**metadata),
             srid=srid
         )
 
-    def image(sensor, args):
-        referential = args['referential']['*']
+    def image(sensor, referential):
         description = 'origin: top left corner of top left pixel, ' \
                       '+XY: raster pixel coordinates, ' \
                       '+Z: inverse depth (measured along the optical axis). ' \
@@ -292,8 +281,7 @@ class Referential:
             root=True,
         )
 
-    def undis(sensor, args):
-        referential = args['referential']['*']
+    def undis(sensor, referential):
         description = 'origin: top left corner of top left pixel, ' \
                       '+XY: raster pixel coordinates, ' \
                       '+Z: inverse depth (measured along the optical axis). ' \
@@ -304,8 +292,7 @@ class Referential:
             description=description.format(**referential),
         )
 
-    def eucli(sensor, args, root):
-        referential = args['referential']['*']
+    def eucli(sensor, referential):
         description = 'origin: camera position, ' \
                       '+X: right of the camera, ' \
                       '+Y: bottom of the camera, ' \
@@ -313,18 +300,16 @@ class Referential:
                       '{description}'
         return Api.Referential(
             sensor, referential,
-            name=ImportOrimatis.get_position(root),
             description=description.format(**referential),
         )
 
 
 class Transfo:
-    def pinh(source, target, args, root):
-        transfo = args['transfo']['*#intrinseque#*']
+    def pinh(source, target, transfo, root):
         node = xmlutil.child(root, 'geometry/intrinseque/sensor')
         return Api.Transfo(
             source, target, transfo,
-            name='{name}#intrinseque#projection'.format(**transfo),
+            name='{name}#projection'.format(**transfo),
             type_name='projective_pinhole',
             parameters={
                 'focal': xmlutil.child_float(node, 'ppa/focale'),
@@ -332,12 +317,11 @@ class Transfo:
             },
         )
 
-    def sphe(source, target, args, root):
-        transfo = args['transfo']['*#intrinseque#*']
+    def sphe(source, target, transfo, root):
         node = xmlutil.child(root, 'geometry/intrinseque/spherique')
         return Api.Transfo(
             source, target, transfo,
-            name='{name}#intrinseque#projection'.format(**transfo),
+            name='{name}#projection'.format(**transfo),
             type_name='cartesian_to_spherical',
             parameters={
                 'ppa': xmlutil.child_floats(node, 'ppa/[c,l]'),
@@ -346,12 +330,11 @@ class Transfo:
             },
         )
 
-    def dist(source, target, args, root):
-        transfo = args['transfo']['*#intrinseque#*']
+    def dist(source, target, transfo, root):
         node = xmlutil.child(root, 'geometry/intrinseque/sensor')
         return Api.Transfo(
             source, target, transfo,
-            name='{name}#intrinseque#distortion'.format(**transfo),
+            name='{name}#distortion'.format(**transfo),
             type_name='poly_radial_7',
             parameters={
                 'C': xmlutil.child_floats(node, 'distortion/pps/[c,l]'),
@@ -359,8 +342,7 @@ class Transfo:
             },
         )
 
-    def quat(source, target, args, root):
-        transfo = args['transfo']['*#extrinseque#*']
+    def quat(source, target, transfo, root):
         node = xmlutil.child(root, 'geometry/extrinseque')
         p = xmlutil.child_floats(node, 'sommet/[easting,northing,altitude]')
         reverse = xmlutil.child_bool(node, 'rotation/Image2Ground')
@@ -370,14 +352,13 @@ class Transfo:
         quat = xmlutil.child_floats(node, 'rotation/quaternion/[x,y,z,w]')
         return Api.Transfo(
             source, target, transfo,
-            name='{name}#extrinseque#quaternion'.format(**transfo),
+            name='{name}#quaternion'.format(**transfo),
             type_name='affine_quat',
             parameters={'quat': quat, 'vec3': p},
             reverse=reverse,
         )
 
-    def matr(source, target, args, root):
-        transfo = args['transfo']['*#extrinseque#*']
+    def matr(source, target, transfo, root):
         node = xmlutil.child(root, 'geometry/extrinseque')
         p = xmlutil.child_floats(node, 'sommet/[easting,northing,altitude]')
         reverse = xmlutil.child_bool(node, 'rotation/Image2Ground')
@@ -398,49 +379,8 @@ class Transfo:
 
         return Api.Transfo(
             source, target, transfo,
-            name='{name}#extrinseque#mat3d'.format(**transfo),
+            name='{name}#mat3d'.format(**transfo),
             type_name='affine_mat4x3',
             parameters={'mat4x3': matrix},
             reverse=reverse,
         )
-
-
-class Transfotree(Api.Transfotree):
-    def __init__(self, transfos, args):
-        super().__init__(transfos, args['transfotree']['*'])
-
-
-class Project(Api.Project):
-    def __init__(self, args, root):
-        name = ImportOrimatis.get_project(root)
-        super().__init__(args['project']['*'], name=name)
-
-
-class Platform(Api.Platform):
-    def __init__(self, args):
-        super().__init__(args['platform']['*'], name='Stereopolis II')
-
-
-class Session(Api.Session):
-    def __init__(self, project, platform, args, root):
-        super().__init__(
-            project, platform, args['session']['*'],
-            name='{}/{}/{}'.format(
-                ImportOrimatis.get_date(root),
-                ImportOrimatis.get_section(root),
-                ImportOrimatis.get_session(root)
-            )
-        )
-
-
-class Datasource(Api.Datasource):
-    def __init__(self, session, referential, args, root):
-        super().__init__(
-            session, referential, args['datasource']['*'],
-            uri=xmlutil.child(root, 'auxiliarydata/image_name').text,
-        )
-
-
-class Config(Api.Config):
-    def __init__(self, platform, transfotrees, args):
-        super().__init__(platform, transfotrees, args['config']['*'])

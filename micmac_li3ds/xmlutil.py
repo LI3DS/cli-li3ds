@@ -1,4 +1,5 @@
 import xml.etree.ElementTree
+import datetime
 
 
 def root(filename, name):
@@ -101,3 +102,23 @@ def child_floats_split(parent, name):
         err = 'Error: "{}" tag includes non-parseable numbers ' \
           'in XML tag "{}"'.format(name, parent.tag)
         raise RuntimeError(err)
+
+
+def findtext(parent, name):
+    text = parent.findtext(name)
+    return text.strip() if text else None
+
+
+def finddate(parent, name, formats):
+    date = parent.find(name)
+    if date is None:
+        return None
+    date = date.text.strip()
+    for f in formats:
+        try:
+            return datetime.datetime.strptime(date, f)
+        except ValueError:
+            continue
+    err = 'Error: "{}" tag includes non-parseable date in XML tag "{}" ' \
+          '({} does not match {})'.format(name, parent.tag, date, formats)
+    raise RuntimeError(err)
