@@ -2,7 +2,6 @@ import os
 import logging
 
 from cliff.command import Command
-from argparse import Namespace
 
 from . import api as Api
 from . import xmlutil
@@ -54,7 +53,7 @@ class ImportBlinis(Command):
 
     def take_action(self, parsed_args):
         """
-        Create or update a camera sensor.
+        Create or update sensor groups.
         """
         api = Api.Api(parsed_args, self.log)
 
