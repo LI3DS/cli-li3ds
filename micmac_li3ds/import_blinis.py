@@ -3,7 +3,7 @@ import logging
 
 from cliff.command import Command
 
-from . import api as Api
+from . import api
 from . import xmlutil
 
 
@@ -21,7 +21,7 @@ class ImportBlinis(Command):
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
         parser = super().get_parser(prog_name)
-        Api.add_arguments(parser)
+        api.add_arguments(parser)
         parser.add_argument(
             '--sensor-id', '-i',
             type=int,
@@ -55,7 +55,7 @@ class ImportBlinis(Command):
         """
         Create or update sensor groups.
         """
-        api = Api.Api(parsed_args, self.log)
+        server = api.ApiServer(parsed_args, self.log)
 
         args = {
             'sensor': {
@@ -75,11 +75,11 @@ class ImportBlinis(Command):
         }
         for filename in parsed_args.filename:
             self.log.info('Importing {}'.format(filename))
-            ApiObjs(args, filename).get_or_create(api)
+            ApiObjs(args, filename).get_or_create(server)
             self.log.info('Success!\n')
 
 
-class ApiObjs(Api.ApiObjs):
+class ApiObjs(api.ApiObjs):
     def __init__(self, args, filename):
         root = xmlutil.root(filename, 'StructBlockCam')
         nodes = xmlutil.children(root, 'LiaisonsSHC/ParamOrientSHC')
@@ -92,11 +92,11 @@ class ApiObjs(Api.ApiObjs):
         sensor = {'type': 'group'}
         referential = {'name': 'base', 'root': True}
         transfotree = {}
-        Api.update_obj(args, metadata, sensor, 'sensor')
-        Api.update_obj(args, metadata, referential, 'referential')
-        Api.update_obj(args, metadata, transfotree, 'transfotree')
-        self.sensor = Api.Sensor(sensor)
-        self.base = Api.Referential(self.sensor, referential)
+        api.update_obj(args, metadata, sensor, 'sensor')
+        api.update_obj(args, metadata, referential, 'referential')
+        api.update_obj(args, metadata, transfotree, 'transfotree')
+        self.sensor = api.Sensor(sensor)
+        self.base = api.Referential(self.sensor, referential)
 
         self.referentials = []
         self.transfos = []
@@ -104,27 +104,26 @@ class ApiObjs(Api.ApiObjs):
             metadata['IdGrp'] = xmlutil.findtext(node, 'IdGrp')
             referential = {'name': '{IdGrp}'}
             transfo = {'name': '{IdGrp}'}
-            Api.update_obj(args, metadata, referential, 'referential')
-            Api.update_obj(args, metadata, transfo, 'transfo')
-            referential = Api.Referential(self.sensor, referential)
-            transfo = Transfo(self.base, referential, transfo, node)
+            api.update_obj(args, metadata, referential, 'referential')
+            api.update_obj(args, metadata, transfo, 'transfo')
+            referential = api.Referential(self.sensor, referential)
+            transfo = transfo_grp(self.base, referential, transfo, node)
             self.transfos.append(transfo)
             self.referentials.append(referential)
 
-        self.transfotree = Api.Transfotree(self.transfos, transfotree)
+        self.transfotree = api.Transfotree(self.transfos, transfotree)
         super().__init__()
 
 
-class Transfo(Api.Transfo):
-    def __init__(self, source, target, transfo, node):
-        matrix = []
-        p = xmlutil.child_floats_split(node, 'Vecteur')
-        for i, l in enumerate(('Rot/L1', 'Rot/L2', 'Rot/L3')):
-            matrix.extend(xmlutil.child_floats_split(node, l))
-            matrix.append(p[i])
+def transfo_grp(source, target, transfo, node):
+    matrix = []
+    p = xmlutil.child_floats_split(node, 'Vecteur')
+    for i, l in enumerate(('Rot/L1', 'Rot/L2', 'Rot/L3')):
+        matrix.extend(xmlutil.child_floats_split(node, l))
+        matrix.append(p[i])
 
-        super().__init__(
-            source, target, transfo,
-            type_name='affine_mat4x3',
-            parameters={'mat4x3': matrix},
-        )
+    return api.Transfo(
+        source, target, transfo,
+        type_name='affine_mat4x3',
+        parameters={'mat4x3': matrix},
+    )

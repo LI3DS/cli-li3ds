@@ -2,11 +2,10 @@ import os
 import logging
 
 from cliff.command import Command
-from argparse import Namespace
 
-from . import api as Api
-from . import distortion
+from . import api
 from . import xmlutil
+from . import distortion
 
 
 class ImportAutocal(Command):
@@ -21,7 +20,7 @@ class ImportAutocal(Command):
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
         parser = super().get_parser(prog_name)
-        Api.add_arguments(parser)
+        api.add_arguments(parser)
         parser.add_argument(
             '--sensor-id', '-i',
             type=int,
@@ -55,7 +54,7 @@ class ImportAutocal(Command):
         """
         Create or update a camera sensor.
         """
-        api = Api.Api(parsed_args, self.log)
+        server = api.ApiServer(parsed_args, self.log)
 
         args = {
             'sensor': {
@@ -75,12 +74,27 @@ class ImportAutocal(Command):
         }
         for filename in parsed_args.filename:
             self.log.info('Importing {}'.format(filename))
-            ApiObjs(args, filename).get_or_create(api)
+            ApiObjs(args, filename).get_or_create(server)
             self.log.info('Success!\n')
 
 
-class ApiObjs(Api.ApiObjs):
-    def __init__(self, args, filename, transfotree=None, node=None):
+class ApiObjs(api.ApiObjs):
+    def __init__(self, args, filename, node=None):
+        if node:
+            file_interne = node.findtext('FileInterne')
+            if file_interne:
+                dirname = os.path.dirname(filename)
+                filename = file_interne.strip()
+                if xmlutil.findtext(node, 'RelativeNameFI') == 'true':
+                    filename = os.path.join(dirname, filename)
+                node = None
+            else:
+                node = xmlutil.child(node, 'Interne')
+
+        if not node:
+            root = xmlutil.root(filename, 'ExportAPERO')
+            node = xmlutil.child(root, 'CalibrationInternConique')
+
         metadata = {
             'basename': os.path.basename(filename),
         }
@@ -88,131 +102,131 @@ class ApiObjs(Api.ApiObjs):
         referential = {}
         transfotree = {}
         transfo = {}
-        Api.update_obj(args, metadata, sensor, 'sensor')
-        Api.update_obj(args, metadata, referential, 'referential')
-        Api.update_obj(args, metadata, transfotree, 'transfotree')
-        Api.update_obj(args, metadata, transfo, 'transfo')
-
-        if not node:
-            root = xmlutil.root(filename, 'ExportAPERO')
-            node = xmlutil.child(root, 'CalibrationInternConique')
+        api.update_obj(args, metadata, sensor, 'sensor')
+        api.update_obj(args, metadata, referential, 'referential')
+        api.update_obj(args, metadata, transfotree, 'transfotree')
+        api.update_obj(args, metadata, transfo, 'transfo')
 
         xmlutil.child_check(node, 'KnownConv', 'eConvApero_DistM2C')
 
-        self.sensor = Sensor(sensor, node)
-        target = Referential.raw(self.sensor, referential)
+        self.sensor = sensor_camera(sensor, node)
+        target = referential_raw(self.sensor, referential)
         self.referentials = [target]
         self.transfos = []
+        self.image = target
 
         orintglob = node.find('OrIntGlob')
         if orintglob:
-            source = Referential.distorted(self.sensor, referential)
-            orintglob = Transfo.orintglob(source, target, transfo, orintglob)
+            source = referential_distorted(self.sensor, referential)
+            orintglob = transfo_orintglob(source, target, transfo, orintglob)
             self.referentials.append(source)
             self.transfos.append(orintglob)
             target = source
 
         distos = reversed(xmlutil.children(node, 'CalibDistortion'))
         for i, disto in enumerate(distos):
-            source = Referential.undistorted(self.sensor, referential, i)
-            distortion = Transfo.distortion(source, target, transfo, disto, i)
+            source = referential_undistorted(self.sensor, referential, i)
+            distortion = transfo_distortion(source, target, transfo, disto, i)
             self.referentials.append(source)
             self.transfos.append(distortion)
             target = source
 
-        source = Referential.camera(self.sensor, referential)
-        pinhole = Transfo.pinhole(source, target, transfo, node)
+        source = referential_camera(self.sensor, referential)
+        pinhole = transfo_pinhole(source, target, transfo, node)
         self.referentials.append(source)
         self.transfos.append(pinhole)
+        self.camera = source
 
-        self.transfotree = Api.Transfotree(self.transfos, transfotree)
+        self.transfotree = api.Transfotree(self.transfos, transfotree)
         super().__init__()
 
 
-class Sensor(Api.Sensor):
-    def __init__(self, sensor, node):
-        specs = {'image_size': xmlutil.child_floats_split(node, 'SzIm')}
-        super().__init__(sensor, type='camera', specifications=specs)
+def sensor_camera(sensor, node):
+    specs = {'image_size': xmlutil.child_floats_split(node, 'SzIm')}
+    return api.Sensor(sensor, type='camera', specifications=specs)
 
 
-class Referential:
-    def distorted(sensor, referential):
-        description = 'origin: top left corner of top left pixel, ' \
-                      '+XY: raster pixel coordinates, ' \
-                      '+Z: inverse depth (measured along the optical axis). ' \
-                      '{description}'
-        return Api.Referential(
-            sensor, referential,
-            name='distorted',
-            description=description.format(**referential),
-            root=True,
-        )
-
-    def raw(sensor, referential):
-        description = 'origin: top left corner of top left pixel, ' \
-                      '+XY: raster pixel coordinates, ' \
-                      '+Z: inverse depth (measured along the optical axis). ' \
-                      '{description}'
-        return Api.Referential(
-            sensor, referential,
-            name='raw',
-            description=description.format(**referential),
-        )
-
-    def undistorted(sensor, referential, i):
-        description = 'origin: top left corner of top left pixel, ' \
-                      '+XY: raster pixel coordinates, ' \
-                      '+Z: inverse depth (measured along the optical axis). ' \
-                      '{description}'
-        return Api.Referential(
-            sensor, referential,
-            name='undistorted[{}]'.format(i),
-            description=description.format(**referential),
-        )
-
-    def camera(sensor, referential):
-        description = 'origin: camera position, ' \
-                      '+X: right of the camera, ' \
-                      '+Y: bottom of the camera, ' \
-                      '+Z: optical axis (in front of the camera), ' \
-                      '{description}'
-        return Api.Referential(
-            sensor, referential,
-            name='camera',
-            description=description.format(**referential),
-        )
+def referential_distorted(sensor, referential):
+    description = 'origin: top left corner of top left pixel, ' \
+                  '+XY: raster pixel coordinates, ' \
+                  '+Z: inverse depth (measured along the optical axis). ' \
+                  '{description}'
+    return api.Referential(
+        sensor, referential,
+        name='distorted',
+        description=description.format(**referential),
+        root=True,
+    )
 
 
-class Transfo:
-    def pinhole(source, target, transfo, node):
-        return Api.Transfo(
-            source, target, transfo,
-            name='{name}#projection'.format(**transfo),
-            type_name='projective_pinhole',
-            parameters={
-                'focal': xmlutil.child_float(node, 'F'),
-                'ppa': xmlutil.child_floats_split(node, 'PP'),
-            },
-        )
+def referential_raw(sensor, referential):
+    description = 'origin: top left corner of top left pixel, ' \
+                  '+XY: raster pixel coordinates, ' \
+                  '+Z: inverse depth (measured along the optical axis). ' \
+                  '{description}'
+    return api.Referential(
+        sensor, referential,
+        name='raw',
+        description=description.format(**referential),
+    )
 
-    def orintglob(source, target, transfo, node):
-        affinity = xmlutil.child(node, 'Affinite')
-        p = xmlutil.child_floats_split(affinity, 'I00')
-        u = xmlutil.child_floats_split(affinity, 'V10')
-        v = xmlutil.child_floats_split(affinity, 'V01')
-        return Api.Transfo(
-            source, target, transfo,
-            name='{name}#orintglob'.format(**transfo),
-            type_name='affine_mat3x2',
-            parameters={'mat3x2': [u[0], v[0], p[0], u[1], v[1], p[1]]},
-            reverse=xmlutil.child_bool(node, 'C2M'),
-        )
 
-    def distortion(source, target, transfo, node, i):
-        transfo_type, parameters = distortion.read_info(node)
-        return Api.Transfo(
-            source, target, transfo,
-            name='{name}#distortion[{i}]'.format(**transfo, i=i),
-            type_name=transfo_type,
-            parameters=parameters,
-        )
+def referential_undistorted(sensor, referential, i):
+    description = 'origin: top left corner of top left pixel, ' \
+                  '+XY: raster pixel coordinates, ' \
+                  '+Z: inverse depth (measured along the optical axis). ' \
+                  '{description}'
+    return api.Referential(
+        sensor, referential,
+        name='undistorted[{}]'.format(i),
+        description=description.format(**referential),
+    )
+
+
+def referential_camera(sensor, referential):
+    description = 'origin: camera position, ' \
+                  '+X: right of the camera, ' \
+                  '+Y: bottom of the camera, ' \
+                  '+Z: optical axis (in front of the camera), ' \
+                  '{description}'
+    return api.Referential(
+        sensor, referential,
+        name='camera',
+        description=description.format(**referential),
+    )
+
+
+def transfo_pinhole(source, target, transfo, node):
+    return api.Transfo(
+        source, target, transfo,
+        name='{name}#projection'.format(**transfo),
+        type_name='projective_pinhole',
+        parameters={
+            'focal': xmlutil.child_float(node, 'F'),
+            'ppa': xmlutil.child_floats_split(node, 'PP'),
+        },
+    )
+
+
+def transfo_orintglob(source, target, transfo, node):
+    affinity = xmlutil.child(node, 'Affinite')
+    p = xmlutil.child_floats_split(affinity, 'I00')
+    u = xmlutil.child_floats_split(affinity, 'V10')
+    v = xmlutil.child_floats_split(affinity, 'V01')
+    return api.Transfo(
+        source, target, transfo,
+        name='{name}#orintglob'.format(**transfo),
+        type_name='affine_mat3x2',
+        parameters={'mat3x2': [u[0], v[0], p[0], u[1], v[1], p[1]]},
+        reverse=xmlutil.child_bool(node, 'C2M'),
+    )
+
+
+def transfo_distortion(source, target, transfo, node, i):
+    transfo_type, parameters = distortion.read_info(node)
+    return api.Transfo(
+        source, target, transfo,
+        name='{name}#distortion[{i}]'.format(i=i, **transfo),
+        type_name=transfo_type,
+        parameters=parameters,
+    )

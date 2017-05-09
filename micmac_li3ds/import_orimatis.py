@@ -5,7 +5,7 @@ import pytz
 
 from cliff.command import Command
 
-from . import api as Api
+from . import api
 from . import xmlutil
 
 
@@ -21,7 +21,7 @@ class ImportOrimatis(Command):
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
         parser = super().get_parser(prog_name)
-        Api.add_arguments(parser)
+        api.add_arguments(parser)
         parser.add_argument(
             '--sensor-id', '-i',
             type=int,
@@ -61,7 +61,7 @@ class ImportOrimatis(Command):
         """
         Create or update a camera sensor.
         """
-        api = Api.Api(parsed_args, self.log)
+        server = api.ApiServer(parsed_args, self.log)
 
         args = {
             'sensor': {
@@ -90,11 +90,11 @@ class ImportOrimatis(Command):
         }
         for filename in parsed_args.filename:
             self.log.info('Importing {}'.format(filename))
-            ApiObjs(args, filename).get_or_create(api)
+            ApiObjs(args, filename).get_or_create(server)
             self.log.info('Success!\n')
 
 
-class ApiObjs(Api.ApiObjs):
+class ApiObjs(api.ApiObjs):
     def __init__(self, args, filename):
         # open XML file
         root = xmlutil.root(filename, 'orientation')
@@ -119,9 +119,9 @@ class ApiObjs(Api.ApiObjs):
             'calibration':     calibration,
             'acquisition':     acquisition,
             'date':            date,
-            'calibration_iso': Api.isoformat(calibration),
-            'acquisition_iso': Api.isoformat(acquisition),
-            'date_iso':        Api.isoformat(date),
+            'calibration_iso': api.isoformat(calibration),
+            'acquisition_iso': api.isoformat(acquisition),
+            'date_iso':        api.isoformat(date),
             'numero':    xmlutil.child_int(stereopolis, 'numero'),
             'section':   xmlutil.child_int(stereopolis, 'section'),
             'session':   xmlutil.child_int(stereopolis, 'session'),
@@ -154,45 +154,45 @@ class ApiObjs(Api.ApiObjs):
         transfotree = {}
         config = {}
 
-        Api.update_obj(args, metadata, sensor, 'sensor')
-        Api.update_obj(args, metadata, referential, 'referential')
-        Api.update_obj(args, metadata, transfo_ext, 'transfo_ext')
-        Api.update_obj(args, metadata, transfo_int, 'transfo_int')
-        Api.update_obj(args, metadata, transfotree, 'transfotree')
-        Api.update_obj(args, metadata, project, 'project')
-        Api.update_obj(args, metadata, platform, 'platform')
-        Api.update_obj(args, metadata, session, 'session')
-        Api.update_obj(args, metadata, datasource, 'datasource')
-        Api.update_obj(args, metadata, config, 'config')
+        api.update_obj(args, metadata, sensor, 'sensor')
+        api.update_obj(args, metadata, referential, 'referential')
+        api.update_obj(args, metadata, transfo_ext, 'transfo_ext')
+        api.update_obj(args, metadata, transfo_int, 'transfo_int')
+        api.update_obj(args, metadata, transfotree, 'transfotree')
+        api.update_obj(args, metadata, project, 'project')
+        api.update_obj(args, metadata, platform, 'platform')
+        api.update_obj(args, metadata, session, 'session')
+        api.update_obj(args, metadata, datasource, 'datasource')
+        api.update_obj(args, metadata, config, 'config')
 
         # get or create sensor
-        self.sensor = Sensor(sensor, node, metadata)
+        self.sensor = sensor_camera(sensor, node, metadata)
 
         # get or create world, euclidean and rawImage referentials
-        self.ref_w = Referential.world(self.sensor, referential, metadata)
-        self.ref_e = Referential.eucli(self.sensor, referential)
-        self.ref_i = Referential.image(self.sensor, referential)
+        self.ref_w = referential_world(self.sensor, referential, metadata)
+        self.ref_e = referential_eucli(self.sensor, referential)
+        self.ref_i = referential_image(self.sensor, referential)
 
         # get or create matr, quat, pinh, dist or sphe transforms
-        self.matr = Transfo.matr(self.ref_w, self.ref_e, transfo_ext, root)
-        self.quat = Transfo.quat(self.ref_w, self.ref_e, transfo_ext, root)
+        self.matr = transfo_matr(self.ref_w, self.ref_e, transfo_ext, root)
+        self.quat = transfo_quat(self.ref_w, self.ref_e, transfo_ext, root)
 
         if sensor_node:
-            self.ref_u = Referential.undis(self.sensor, referential)
-            self.pinh = Transfo.pinh(self.ref_e, self.ref_u, transfo_int, root)
-            self.dist = Transfo.dist(self.ref_u, self.ref_i, transfo_int, root)
+            self.ref_u = referential_undis(self.sensor, referential)
+            self.pinh = transfo_pinh(self.ref_e, self.ref_u, transfo_int, root)
+            self.dist = transfo_dist(self.ref_u, self.ref_i, transfo_int, root)
             transfos = [self.quat or self.matr, self.pinh, self.dist]
 
         else:
-            self.sphe = Transfo.sphe(self.ref_e, self.ref_i, transfo_int, root)
+            self.sphe = transfo_sphe(self.ref_e, self.ref_i, transfo_int, root)
             transfos = [self.quat or self.matr, self.sphe]
 
-        self.transfotree = Api.Transfotree(transfos, transfotree)
-        self.project = Api.Project(project)
-        self.platform = Api.Platform(platform)
-        self.session = Api.Session(self.project, self.platform, session)
-        self.datasource = Api.Datasource(self.session, self.ref_i, datasource)
-        self.config = Api.Config(self.platform, [self.transfotree], config)
+        self.transfotree = api.Transfotree(transfos, transfotree)
+        self.project = api.Project(project)
+        self.platform = api.Platform(platform)
+        self.session = api.Session(self.project, self.platform, session)
+        self.datasource = api.Datasource(self.session, self.ref_i, datasource)
+        self.config = api.Config(self.platform, [self.transfotree], config)
         super().__init__()
 
     @staticmethod
@@ -217,149 +217,153 @@ class ApiObjs(Api.ApiObjs):
         return date.replace(tzinfo=pytz.UTC) if date else None
 
 
-class Sensor(Api.Sensor):
-    def __init__(self, sensor, node, metadata):
-        pixel_size = None
-        if node.tag == 'sensor':
-            pixel_size = xmlutil.child_float(node, 'pixel_size')
+def sensor_camera(sensor, node, metadata):
+    pixel_size = None
+    if node.tag == 'sensor':
+        pixel_size = xmlutil.child_float(node, 'pixel_size')
 
-        image_size = xmlutil.child_floats(node, 'image_size/[width,height]')
-        super().__init__(
-            sensor,
-            specifications={
-                'image_size': image_size,
-                'pixel_size': pixel_size,
-                'flatfield': metadata.get('flatfield'),
-            },
-        )
-
-
-class Referential:
-    def world(sensor, referential, metadata):
-        srid = 0
-        systeme = metadata.get('systeme')
-        grid_alti = metadata.get('grid_alti')
-        if systeme is 'Lambert93' and grid_alti is 'RAF09':
-            srid = 2154
-
-        return Api.Referential(
-            sensor, referential,
-            name='{systeme}/{grid_alti}'.format(**metadata),
-            srid=srid
-        )
-
-    def image(sensor, referential):
-        description = 'origin: top left corner of top left pixel, ' \
-                      '+XY: raster pixel coordinates, ' \
-                      '+Z: inverse depth (measured along the optical axis). ' \
-                      '{description}'
-        return Api.Referential(
-            sensor, referential,
-            name='image',
-            description=description.format(**referential),
-            root=True,
-        )
-
-    def undis(sensor, referential):
-        description = 'origin: top left corner of top left pixel, ' \
-                      '+XY: raster pixel coordinates, ' \
-                      '+Z: inverse depth (measured along the optical axis). ' \
-                      '{description}'
-        return Api.Referential(
-            sensor, referential,
-            name='undistorted',
-            description=description.format(**referential),
-        )
-
-    def eucli(sensor, referential):
-        description = 'origin: camera position, ' \
-                      '+X: right of the camera, ' \
-                      '+Y: bottom of the camera, ' \
-                      '+Z: optical axis (in front of the camera). ' \
-                      '{description}'
-        return Api.Referential(
-            sensor, referential,
-            description=description.format(**referential),
-        )
+    image_size = xmlutil.child_floats(node, 'image_size/[width,height]')
+    return api.Sensor(
+        sensor,
+        specifications={
+            'image_size': image_size,
+            'pixel_size': pixel_size,
+            'flatfield': metadata.get('flatfield'),
+        },
+    )
 
 
-class Transfo:
-    def pinh(source, target, transfo, root):
-        node = xmlutil.child(root, 'geometry/intrinseque/sensor')
-        return Api.Transfo(
-            source, target, transfo,
-            name='{name}#projection'.format(**transfo),
-            type_name='projective_pinhole',
-            parameters={
-                'focal': xmlutil.child_float(node, 'ppa/focale'),
-                'ppa': xmlutil.child_floats(node, 'ppa/[c,l]'),
-            },
-        )
+def referential_world(sensor, referential, metadata):
+    srid = 0
+    systeme = metadata.get('systeme')
+    grid_alti = metadata.get('grid_alti')
+    if systeme is 'Lambert93' and grid_alti is 'RAF09':
+        srid = 2154
 
-    def sphe(source, target, transfo, root):
-        node = xmlutil.child(root, 'geometry/intrinseque/spherique')
-        return Api.Transfo(
-            source, target, transfo,
-            name='{name}#projection'.format(**transfo),
-            type_name='cartesian_to_spherical',
-            parameters={
-                'ppa': xmlutil.child_floats(node, 'ppa/[c,l]'),
-                'lambda': xmlutil.child_floats(node, 'frame/lambda_[min,max]'),
-                'phi': xmlutil.child_floats(node, 'frame/phi_[min,max]'),
-            },
-        )
+    return api.Referential(
+        sensor, referential,
+        name='{systeme}/{grid_alti}'.format(**metadata),
+        srid=srid
+    )
 
-    def dist(source, target, transfo, root):
-        node = xmlutil.child(root, 'geometry/intrinseque/sensor')
-        return Api.Transfo(
-            source, target, transfo,
-            name='{name}#distortion'.format(**transfo),
-            type_name='poly_radial_7',
-            parameters={
-                'C': xmlutil.child_floats(node, 'distortion/pps/[c,l]'),
-                'R': xmlutil.child_floats(node, 'distortion/[r3,r5,r7]'),
-            },
-        )
 
-    def quat(source, target, transfo, root):
-        node = xmlutil.child(root, 'geometry/extrinseque')
-        p = xmlutil.child_floats(node, 'sommet/[easting,northing,altitude]')
-        reverse = xmlutil.child_bool(node, 'rotation/Image2Ground')
-        if node.find('rotation/quaternion') is None:
-            return Api.NoObj
+def referential_image(sensor, referential):
+    description = 'origin: top left corner of top left pixel, ' \
+                  '+XY: raster pixel coordinates, ' \
+                  '+Z: inverse depth (measured along the optical axis). ' \
+                  '{description}'
+    return api.Referential(
+        sensor, referential,
+        name='image',
+        description=description.format(**referential),
+        root=True,
+    )
 
-        quat = xmlutil.child_floats(node, 'rotation/quaternion/[x,y,z,w]')
-        return Api.Transfo(
-            source, target, transfo,
-            name='{name}#quaternion'.format(**transfo),
-            type_name='affine_quat',
-            parameters={'quat': quat, 'vec3': p},
-            reverse=reverse,
-        )
 
-    def matr(source, target, transfo, root):
-        node = xmlutil.child(root, 'geometry/extrinseque')
-        p = xmlutil.child_floats(node, 'sommet/[easting,northing,altitude]')
-        reverse = xmlutil.child_bool(node, 'rotation/Image2Ground')
-        if node.find('rotation/mat3d') is None:
-            return Api.NoObj
+def referential_undis(sensor, referential):
+    description = 'origin: top left corner of top left pixel, ' \
+                  '+XY: raster pixel coordinates, ' \
+                  '+Z: inverse depth (measured along the optical axis). ' \
+                  '{description}'
+    return api.Referential(
+        sensor, referential,
+        name='undistorted',
+        description=description.format(**referential),
+    )
 
-        l1 = xmlutil.child_floats(node, 'rotation/mat3d/l1/pt3d/[x,y,z]')
-        l2 = xmlutil.child_floats(node, 'rotation/mat3d/l2/pt3d/[x,y,z]')
-        l3 = xmlutil.child_floats(node, 'rotation/mat3d/l3/pt3d/[x,y,z]')
 
-        matrix = []
-        matrix.extend(l1)
-        matrix.append(p[0])
-        matrix.extend(l2)
-        matrix.append(p[1])
-        matrix.extend(l3)
-        matrix.append(p[2])
+def referential_eucli(sensor, referential):
+    description = 'origin: camera position, ' \
+                  '+X: right of the camera, ' \
+                  '+Y: bottom of the camera, ' \
+                  '+Z: optical axis (in front of the camera). ' \
+                  '{description}'
+    return api.Referential(
+        sensor, referential,
+        description=description.format(**referential),
+    )
 
-        return Api.Transfo(
-            source, target, transfo,
-            name='{name}#mat3d'.format(**transfo),
-            type_name='affine_mat4x3',
-            parameters={'mat4x3': matrix},
-            reverse=reverse,
-        )
+
+def transfo_pinh(source, target, transfo, root):
+    node = xmlutil.child(root, 'geometry/intrinseque/sensor')
+    return api.Transfo(
+        source, target, transfo,
+        name='{name}#projection'.format(**transfo),
+        type_name='projective_pinhole',
+        parameters={
+            'focal': xmlutil.child_float(node, 'ppa/focale'),
+            'ppa': xmlutil.child_floats(node, 'ppa/[c,l]'),
+        },
+    )
+
+
+def transfo_sphe(source, target, transfo, root):
+    node = xmlutil.child(root, 'geometry/intrinseque/spherique')
+    return api.Transfo(
+        source, target, transfo,
+        name='{name}#projection'.format(**transfo),
+        type_name='cartesian_to_spherical',
+        parameters={
+            'ppa': xmlutil.child_floats(node, 'ppa/[c,l]'),
+            'lambda': xmlutil.child_floats(node, 'frame/lambda_[min,max]'),
+            'phi': xmlutil.child_floats(node, 'frame/phi_[min,max]'),
+        },
+    )
+
+
+def transfo_dist(source, target, transfo, root):
+    node = xmlutil.child(root, 'geometry/intrinseque/sensor')
+    return api.Transfo(
+        source, target, transfo,
+        name='{name}#distortion'.format(**transfo),
+        type_name='poly_radial_7',
+        parameters={
+            'C': xmlutil.child_floats(node, 'distortion/pps/[c,l]'),
+            'R': xmlutil.child_floats(node, 'distortion/[r3,r5,r7]'),
+        },
+    )
+
+
+def transfo_quat(source, target, transfo, root):
+    node = xmlutil.child(root, 'geometry/extrinseque')
+    p = xmlutil.child_floats(node, 'sommet/[easting,northing,altitude]')
+    reverse = xmlutil.child_bool(node, 'rotation/Image2Ground')
+    if node.find('rotation/quaternion') is None:
+        return api.NoObj
+
+    quat = xmlutil.child_floats(node, 'rotation/quaternion/[x,y,z,w]')
+    return api.Transfo(
+        source, target, transfo,
+        name='{name}#quaternion'.format(**transfo),
+        type_name='affine_quat',
+        parameters={'quat': quat, 'vec3': p},
+        reverse=reverse,
+    )
+
+
+def transfo_matr(source, target, transfo, root):
+    node = xmlutil.child(root, 'geometry/extrinseque')
+    p = xmlutil.child_floats(node, 'sommet/[easting,northing,altitude]')
+    reverse = xmlutil.child_bool(node, 'rotation/Image2Ground')
+    if node.find('rotation/mat3d') is None:
+        return api.NoObj
+
+    l1 = xmlutil.child_floats(node, 'rotation/mat3d/l1/pt3d/[x,y,z]')
+    l2 = xmlutil.child_floats(node, 'rotation/mat3d/l2/pt3d/[x,y,z]')
+    l3 = xmlutil.child_floats(node, 'rotation/mat3d/l3/pt3d/[x,y,z]')
+
+    matrix = []
+    matrix.extend(l1)
+    matrix.append(p[0])
+    matrix.extend(l2)
+    matrix.append(p[1])
+    matrix.extend(l3)
+    matrix.append(p[2])
+
+    return api.Transfo(
+        source, target, transfo,
+        name='{name}#mat3d'.format(**transfo),
+        type_name='affine_mat4x3',
+        parameters={'mat4x3': matrix},
+        reverse=reverse,
+    )

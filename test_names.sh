@@ -32,7 +32,7 @@ mm2li import-blinis   $MM2LIARGS $@ data/blinis_*.xml -s stea --transfotree cali
 
 mm2li import-orimatis $MM2LIARGS $@ data/conic*.ori.xml -s matissensor
 
-mm2li import-autocal  $MM2LIARGS $@ data/Calib-00.xml --transfotree Calib-00 -n Sensor-00
+mm2li import-autocal  $MM2LIARGS $@ data/Calib-00.xml --transfotree Calib-00 -s Sensor-00
 mm2li import-autocal  $MM2LIARGS $@ data/Cali*.xml
 
 mm2li import-ori      $MM2LIARGS $@ data/Orientation-00.xml -s Sensor-00 --transfotree Ori-00 --intrinsic-transfotree Calib-00

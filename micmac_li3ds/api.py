@@ -24,7 +24,7 @@ def add_arguments(parser):
        help='the data owner (optional, default is unix username)')
 
 
-class Api(object):
+class ApiServer(object):
 
     def __init__(self, args, log):
         self.api_url = args.api_url
@@ -395,9 +395,11 @@ class Config(ApiObj):
 
 
 def update_obj(args, metadata, obj, type_):
-    if type_ not in ['datasource']:
+    noname = ['datasource']
+    nodesc = ['datasource', 'transfotree', 'project', 'session']
+    if all(not type_.startswith(s) for s in noname):
         obj.setdefault('name', '{basename}')
-    if type_ not in ['datasource', 'transfotree', 'project', 'session']:
+    if all(not type_.startswith(s) for s in nodesc):
         obj.setdefault('description', 'Imported from "{basename}"')
     if type_ in args:
         obj.update({k: v for k, v in args[type_].items() if v})
@@ -414,5 +416,3 @@ def update_obj(args, metadata, obj, type_):
 
 def isoformat(date):
     return date.isoformat() if date else None
-
-

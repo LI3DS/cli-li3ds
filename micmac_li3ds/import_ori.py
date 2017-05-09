@@ -2,9 +2,8 @@ import os
 import logging
 
 from cliff.command import Command
-from argparse import Namespace
 
-from . import api as li3ds
+from . import api
 from . import xmlutil
 from . import import_autocal
 
@@ -23,22 +22,14 @@ class ImportOri(Command):
     def get_parser(self, prog_name):
         self.log.debug(prog_name)
         parser = super().get_parser(prog_name)
+        api.add_arguments(parser)
         parser.add_argument(
-            '--api-url', '-u',
-            help='the li3ds API URL (optional)')
-        parser.add_argument(
-            '--api-key', '-k',
-            help='the li3ds API key (optional)')
-        parser.add_argument(
-            '--no-proxy', action='store_true',
-            help='disable all proxy settings')
-        parser.add_argument(
-            '--sensor-id', '-s',
+            '--sensor-id', '-i',
             type=int,
-            help='the sensor group id (optional)')
+            help='the camera sensor id (optional)')
         parser.add_argument(
-            '--sensor-name', '-n',
-            help='the sensor group name (optional)')
+            '--sensor', '-s',
+            help='the camera sensor name (optional)')
         parser.add_argument(
             '--transfotree',
             help='the transfotree name (optional)')
@@ -46,12 +37,11 @@ class ImportOri(Command):
             '--intrinsic-transfotree',
             help='the intrinsic transfotree name (optional)')
         parser.add_argument(
-            '--owner', '-o',
-            help='the data owner (optional, default is unix username)')
+            '--transfo', '-t',
+            help='the transfo basename (optional)')
         parser.add_argument(
-            '--calibration-date', '-d',
-            help='the calibration date (optional, default is the current '
-                 'local date and time')
+            '--calibration', '-d',
+            help='the calibration datetime (optional')
         parser.add_argument(
             '--validity-start',
             help='validity start date for transfos (optional, '
@@ -61,82 +51,77 @@ class ImportOri(Command):
             help='validity end date for transfos (optional, '
                  'default is valid until forever)')
         parser.add_argument(
-            '--indent', type=int,
-            help='number of spaces for pretty print indenting')
-        parser.add_argument(
-            'filenames', nargs='+',
+            'filename', nargs='+',
             help='the list of Ori Micmac filenames')
         return parser
 
-    def take_action(self, args):
+    def take_action(self, parsed_args):
         """
         Create or update a sensor group.
         """
-        api = li3ds.Api(args.api_url, args.api_key, args.no_proxy,
-                        self.log, args.indent)
-        for filename in args.filenames:
+        server = api.ApiServer(parsed_args, self.log)
+
+        args = {
+            'sensor': {
+                'name': parsed_args.sensor,
+                'id': parsed_args.sensor_id,
+            },
+            'transfo': {
+                'name': parsed_args.transfo,
+                'tdate': parsed_args.calibration,
+                'validity_start': parsed_args.validity_start,
+                'validity_end': parsed_args.validity_end,
+            },
+            'transfotree': {
+                    'name': parsed_args.intrinsic_transfotree,
+                    'owner': parsed_args.owner,
+            },
+            'transfotree_all': {
+                    'name': parsed_args.transfotree,
+                    'owner': parsed_args.owner,
+            },
+        }
+        for filename in parsed_args.filename:
             self.log.info('Importing {}'.format(filename))
-            import_orientation(api, args, filename)
-        self.log.info('Success!\n')
+            ApiObjs(args, filename).get_or_create(server)
+            self.log.info('Success!\n')
 
 
-def import_orientation(api, args, filename):
-    args = Namespace(**vars(args))
-    args.basename = os.path.basename(filename)
-    args.transfotree = args.transfotree or args.basename
+class ApiObjs(api.ApiObjs):
+    def __init__(self, args, filename):
+        metadata = {
+            'basename': os.path.basename(filename),
+        }
+        referential = {}
+        transfo = {}
+        transfotree = {}
+        transfotree_all = {}
+        api.update_obj(args, metadata, referential, 'referential')
+        api.update_obj(args, metadata, transfo, 'transfo')
+        api.update_obj(args, metadata, transfotree, 'transfotree')
+        api.update_obj(args, metadata, transfotree_all, 'transfotree_all')
 
-    root = xmlutil.root(filename, 'ExportAPERO')
-    node = xmlutil.child(root, 'OrientationConique')
-    xmlutil.child_check(node, 'ConvOri/KnownConv', 'eConvApero_DistM2C')
-    xmlutil.child_check(node, 'TypeProj', 'eProjStenope')
+        root = xmlutil.root(filename, 'ExportAPERO')
+        node = xmlutil.child(root, 'OrientationConique')
+        xmlutil.child_check(node, 'ConvOri/KnownConv', 'eConvApero_DistM2C')
+        xmlutil.child_check(node, 'TypeProj', 'eProjStenope')
 
-    sensor, ref_ri, ref_eu, transfotree = import_intrinsics(
-        api, args, filename, node)
+        intrinsics = import_autocal.ApiObjs(args, filename, node)
+        self.sensor = intrinsics.sensor
+        self.transfotree_int = intrinsics.transfotree
 
-    ref_wo = import_world_referential(api, args, node, sensor)
-    ref_oi = import_orint_referential(api, args, node, sensor)
+        self.world = api.Referential(self.sensor, referential, name='world')
+        self.image = api.Referential(self.sensor, referential, name='image')
 
-    pose = import_pose_transform(api, args, node, ref_wo, ref_eu)
-    orint = import_orint_transform(api, args, node, ref_ri, ref_oi)
-    transfotree = import_transfotree(
-        api, args, node, transfotree, [orint, pose])
-
-    return transfotree
-
-
-def import_intrinsics(api, args, filename, node):
-    file_interne = node.findtext('FileInterne')
-    if file_interne:
-        dirname = os.path.dirname(filename)
-        filename = file_interne.strip()
-        if xmlutil.child(node, 'RelativeNameFI').text.strip() == 'true':
-            filename = os.path.join(dirname, filename)
-        tt = args.intrinsic_transfotree or os.path.basename(filename)
-        return import_autocal.import_intrinsics(api, args, filename, tt)
-    else:
-        node = xmlutil.child(node, 'Interne')
-        filename = '{}#Interne'.format(args.basename)
-        tt = args.intrinsic_transfotree or filename
-        return import_autocal.import_intrinsics(api, args, filename, tt, node)
+        self.pose = transfo_pose(self.world, intrinsics.camera, transfo, node)
+        self.orint = transfo_orint(intrinsics.image, self.image, transfo, node)
+        self.transfos = [self.orint, self.pose]
+        self.transfos.extend(self.transfotree_int.arrays['transfos'])
+        self.transfotree = api.Transfotree(self.transfos, transfotree_all)
+        super().__init__()
 
 
-def import_world_referential(api, args, node, sensor):
-    return api.get_or_create_referential(
-        name='world',
-        sensor=sensor,
-        description='imported from "{}"'.format(args.basename),
-    )
-
-
-def import_orint_referential(api, args, node, sensor):
-    return api.get_or_create_referential(
-        name='image',
-        sensor=sensor,
-        description='imported from "{}"'.format(args.basename),
-    )
-
-
-def import_pose_transform(api, args, node, source, target):
+def transfo_pose(source, target, transfo, node):
     xmlutil.child_check(node, 'Externe/KnownConv', 'eConvApero_DistM2C')
     p = xmlutil.child_floats_split(node, 'Externe/Centre')
     rot = xmlutil.child(node, 'Externe/ParamRotation/CodageMatr')
@@ -144,36 +129,21 @@ def import_pose_transform(api, args, node, source, target):
     for i, l in enumerate(('L1', 'L2', 'L3')):
         matrix.extend(xmlutil.child_floats_split(rot, l))
         matrix.append(p[i])
-    name = '{}#Externe'.format(args.transfotree)
-    return api.get_or_create_transfo(
-        name, 'affine_mat4x3', source, target,
-        description='imported from "{}"'.format(args.basename),
+    return api.Transfo(
+        source, target, transfo,
+        name='{name}#Externe'.format(**transfo),
+        type_name='affine_mat4x3',
         parameters={'mat4x3': matrix},
-        tdate=args.calibration_date,
-        validity_start=args.validity_start,
-        validity_end=args.validity_end,
     )
 
 
-def import_orint_transform(api, args, node, source, target):
+def transfo_orint(source, target, transfo, node):
     p = xmlutil.child_floats_split(node, 'OrIntImaM2C/I00')
     u = xmlutil.child_floats_split(node, 'OrIntImaM2C/V10')
     v = xmlutil.child_floats_split(node, 'OrIntImaM2C/V01')
-    name = '{}#OrIntImaM2C'.format(args.transfotree)
-    return api.get_or_create_transfo(
-        name, 'affine_mat3x2', source, target,
-        description='imported from "{}"'.format(args.basename),
+    return api.Transfo(
+        source, target, transfo,
+        name='{name}#OrIntImaM2C'.format(**transfo),
+        type_name='affine_mat3x2',
         parameters={'mat3x2': [u[0], v[0], p[0], u[1], v[1], p[1]]},
-        tdate=args.calibration_date,
-        validity_start=args.validity_start,
-        validity_end=args.validity_end,
-    )
-
-
-def import_transfotree(api, args, node, basetree, transfos):
-    return api.get_or_create_transfotree(
-        name=args.transfotree,
-        transfos=transfos,
-        owner=args.owner,
-        basetree=basetree,
     )
