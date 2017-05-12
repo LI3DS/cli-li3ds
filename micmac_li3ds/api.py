@@ -293,7 +293,7 @@ class Sensor(ApiObj):
 
 class Referential(ApiObj):
     def __init__(self, sensor, obj=None, **kwarg):
-        keys = ['id', 'name', 'description', 'root', 'srid']
+        keys = ['id', 'name', 'description', 'srid']
         super().__init__('referential', keys, obj, **kwarg)
         self.objs = {'sensor': sensor}
 

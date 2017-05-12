@@ -154,8 +154,7 @@ def referential_distorted(sensor, referential):
     return api.Referential(
         sensor, referential,
         name='distorted',
-        description=description.format(**referential),
-        root=True,
+        description=description.format(**referential)
     )
 
 

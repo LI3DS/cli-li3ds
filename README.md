@@ -69,21 +69,18 @@ Example Calib XML file : data/AutoCal_Foc-12000_Cam-Caml024_20161205a.xml
   {
     "name": "euclidean",
     "description": "origin: camera position, +X: right of the camera, +Y: bottom of the camera, +Z: optical axis (in front of the camera), imported from {calib_file_basename}",
-    "root": False,
     "sensor": {sensor.id},
     "srid": 0,
   },
   {
     "name": "idealImage",
     "description": "origin: top left corner of top left pixel, +XY: raster pixel coordinates , +Z: inverse depth (measured along the optical axis), imported from {calib_file_basename}",
-    "root": False,
     "sensor": {sensor.id},
     "srid": 0,
   },
   {
     "name": "rawImage",
     "description": "origin: top left corner of top left pixel, +XY: raster pixel coordinates , +Z: inverse depth (measured along the optical axis), imported from {calib_file_basename}",
-    "root": True,
     "sensor": {sensor.id},
     "srid": 0,
   }
@@ -174,7 +171,6 @@ N+1 referentials need to be created :
 {
     "name": "base",
     "description": "referential for sensor group {sensor.id}, imported from {blinis_file_basename}",
-    "root": True,
     "sensor": {sensor.id},
     "srid": 0,
 }
@@ -184,7 +180,6 @@ N+1 referentials need to be created :
 {
     "name": "{<StructBlockCam/LiaisonsSHC/ParamOrientSHC/IdGrp>}",
     "description": "referential for sensor group {sensor.id}, imported from {blinis_file_basename}",
-    "root": False,
     "sensor": {sensor.id},
     "srid": 0,
 }
@@ -268,7 +263,6 @@ This group encodes the extrinsic calibration (a.k.a. pose, trajectory...)
 {
     "name": "world",
     "description": "world referential, imported from {xml_file_basename}",
-    "root": True,
     "sensor": {sensor.id},
     "srid": 0,
 }
@@ -277,7 +271,6 @@ This group encodes the extrinsic calibration (a.k.a. pose, trajectory...)
 {
     "name": "camera",
     "description": "camera referential, imported from {xml_file_basename}",
-    "root": False,
     "sensor": {sensor.id},
     "srid": 0,
 }
@@ -305,7 +298,6 @@ This group encodes the extrinsic calibration (a.k.a. pose, trajectory...)
 {
     "name": "full",
     "description": "full image referential, imported from {xml_file_basename}",
-    "root": True,
     "sensor": {sensor.id},
     "srid": 0,
 }
@@ -314,7 +306,6 @@ This group encodes the extrinsic calibration (a.k.a. pose, trajectory...)
 {
     "name": "crop",
     "description": "cropped image referential, imported from {xml_file_basename}",
-    "root": False,
     "sensor": {sensor.id},
     "srid": 0,
 }

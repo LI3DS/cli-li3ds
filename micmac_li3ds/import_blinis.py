@@ -90,7 +90,7 @@ class ApiObjs(api.ApiObjs):
         }
 
         sensor = {'type': 'group'}
-        referential = {'name': 'base', 'root': True}
+        referential = {'name': 'base'}
         transfotree = {}
         api.update_obj(args, metadata, sensor, 'sensor')
         api.update_obj(args, metadata, referential, 'referential')
