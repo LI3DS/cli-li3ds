@@ -255,8 +255,7 @@ def referential_image(sensor, referential):
     return api.Referential(
         sensor, referential,
         name='image',
-        description=description.format(**referential),
-        root=True,
+        description=description.format(**referential)
     )
 
 
