@@ -141,7 +141,6 @@ A transfo tree may now be created to regroup these two transforms :
 ```
 {
     "name": "{cmdline.transfotree_name else {calib_file_basename}}", -- maybe only the relevant substring of {calib_file_basename}
-    "isdefault": {cmdline.isdefault else True},
     "owner": "{cmdline.owner else {unix username}}",
     "sensor_connections": False,
     "transfos": [{projection.id}, {distortion.id}]
@@ -223,7 +222,6 @@ A transfo tree may now be created to regroup all these transforms :
 ```
 {
     "name": "{cmdline.transfotree_name else {blinis_file_basename}}",
-    "isdefault": {cmdline.isdefault else True},
     "owner": "{cmdline.owner else {unix username}}",
     "sensor_connections": False,
     "transfos": {array of the N newly-created transfo ids}
@@ -353,7 +351,6 @@ A transfo tree may now be created to regroup this single transform :
 ```
 {
     "name": "{cmdline.transfotree_name else pose_{xml_file_basename}}",
-    "isdefault": {cmdline.isdefault else True},
     "owner": "{cmdline.owner else {unix username}}",
     "sensor_connections": False,
     "transfos": [ {pose_transfo.id} ]
@@ -389,7 +386,6 @@ A transfo tree may now be created to regroup this single transform :
 ```
 {
     "name": "{cmdline.transfotree_name else crop_{xml_file_basename}}",
-    "isdefault": {cmdline.isdefault else True},
     "owner": "{cmdline.owner else {unix username}}",
     "sensor_connections": False,
     "transfos": [ {pose_transfo.id} ]
@@ -429,7 +425,6 @@ This introduces 2 transforms and a transfo tree
 ```
 {
     "name": "{cmdline.transfotree_name else connection_{xml_file_basename}}",
-    "isdefault": {cmdline.isdefault else True},
     "owner": "{cmdline.owner else {unix username}}",
     "sensor_connections": True,
     "transfos": [ {Extrinsic2Intrinsic.id} , {Intrinsic2Image.id} }
