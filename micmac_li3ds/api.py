@@ -372,7 +372,7 @@ class Session(ApiObj):
 
 class Datasource(ApiObj):
     def __init__(self, session, referential, obj=None, **kwarg):
-        keys = ('id', 'uri')
+        keys = ('id', 'type', 'uri', 'bounds', 'capture_start', 'capture_end')
         super().__init__('datasource', keys, obj, **kwarg)
         self.objs = {'session': session, 'referential': referential}
 

@@ -53,6 +53,9 @@ class ImportOrimatis(Command):
             help='validity end date for transfos (optional, '
                  'default is valid until forever)')
         parser.add_argument(
+            '--image-dir', '-I',
+            help='directory where image files are stored (optional)')
+        parser.add_argument(
             'filename', nargs='+',
             help='the list of orimatis filenames')
         return parser
@@ -62,6 +65,7 @@ class ImportOrimatis(Command):
         Create or update a camera sensor.
         """
         server = api.ApiServer(parsed_args, self.log)
+        image_dir = parsed_args.image_dir
 
         args = {
             'sensor': {
@@ -90,12 +94,12 @@ class ImportOrimatis(Command):
         }
         for filename in parsed_args.filename:
             self.log.info('Importing {}'.format(filename))
-            ApiObjs(args, filename).get_or_create(server)
+            ApiObjs(args, filename, image_dir).get_or_create(server)
             self.log.info('Success!\n')
 
 
 class ApiObjs(api.ApiObjs):
-    def __init__(self, args, filename):
+    def __init__(self, args, filename, image_dir):
         # open XML file
         root = xmlutil.root(filename, 'orientation')
         xmlutil.child_check(root, 'version', '1.0')
@@ -133,6 +137,8 @@ class ApiObjs(api.ApiObjs):
             'image':     xmlutil.findtext(root, 'auxiliarydata/image_name'),
             'sensor':    xmlutil.findtext(node, 'name'),
             'serial':    xmlutil.findtext(node, 'serial_number'),
+            'image_size': xmlutil.child_floats(
+                node, 'image_size/[width,height]'),
         }
 
         # generate template objects
@@ -150,7 +156,11 @@ class ApiObjs(api.ApiObjs):
         platform = {'name': 'Stereopolis II'}
         project = {'name': '{chantier}'}
         session = {'name': '{date:%y%m%d}/{session}/{section}'}
-        datasource = {'uri': '{image}.tif'}
+        datasource = {
+            'image': '{image}.tif',
+            'capture_start': '{acquisition_iso}',
+            'capture_end': '{acquisition_iso}',
+        }
         transfotree = {}
         config = {}
 
@@ -191,7 +201,8 @@ class ApiObjs(api.ApiObjs):
         self.project = api.Project(project)
         self.platform = api.Platform(platform)
         self.session = api.Session(self.project, self.platform, session)
-        self.datasource = api.Datasource(self.session, self.ref_i, datasource)
+        self.datasource = datasource_image(
+                self.session, self.ref_i, datasource, metadata, image_dir)
         self.config = api.Config(self.platform, [self.transfotree], config)
         super().__init__()
 
@@ -217,12 +228,23 @@ class ApiObjs(api.ApiObjs):
         return date.replace(tzinfo=pytz.UTC) if date else None
 
 
+def datasource_image(session, referential, datasource, metadata, image_dir):
+    image_size = metadata.get('image_size')
+    image_file = datasource.pop('image')
+    if image_dir:
+        image_file = '{}/{}'.format(image_dir, image_file)
+    uri = 'file:{}'.format(image_file)
+    return api.Datasource(
+            session, referential, datasource, type='image', uri=uri,
+            bounds=[0, image_size[0], 0, 0, image_size[1], 0])
+
+
 def sensor_camera(sensor, node, metadata):
     pixel_size = None
     if node.tag == 'sensor':
         pixel_size = xmlutil.child_float(node, 'pixel_size')
 
-    image_size = xmlutil.child_floats(node, 'image_size/[width,height]')
+    image_size = metadata.get('image_size')
     return api.Sensor(
         sensor,
         specifications={
