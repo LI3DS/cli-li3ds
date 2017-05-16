@@ -402,15 +402,21 @@ def update_obj(args, metadata, obj, type_):
         obj.setdefault('description', 'Imported from "{basename}"')
     if type_ in args:
         obj.update({k: v for k, v in args[type_].items() if v})
-    for key in obj:
-        if obj[key]:
+    metadata_no_none = {k: v for k, v in metadata.items() if v is not None}
+    for key in list(obj.keys()):
+        if obj[key] and isinstance(obj[key], str):
             try:
-                obj[key] = obj[key].format(**metadata)
-            except AttributeError:
-                continue
+                obj[key] = obj[key].format(**metadata_no_none)
             except KeyError as e:
-                err = 'metadata {} not available for {}/{}="{}"'
-                raise KeyError(err.format(e, type_, key, obj[key]))
+                # obj[key] contain replacements fields that have no
+                # corresponding keys in metadata_no_none, raise an
+                # error if key is not in the original metadata,
+                # otherwise just delete the key from the object
+                # and continue
+                if e.args[0] not in metadata:
+                    err = 'metadata {} not available for {}/{}="{}"'
+                    raise KeyError(err.format(e.args[0], type_, key, obj[key]))
+                del obj[key]
 
 
 def isoformat(date):
