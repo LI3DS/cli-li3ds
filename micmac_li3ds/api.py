@@ -34,16 +34,16 @@ class ApiServer(object):
         self.log = log
         self.indent = args.indent
         self.ids = {
-            'transfo': ['name', 'source', 'target'],
-            'transfos/type': ['name'],
-            'transfotree': ['name', 'transfos'],
-            'referential': ['name', 'sensor'],
-            'sensor': ['name'],
-            'platform': ['name'],
-            'project': ['name'],
-            'session': ['name', 'project', 'platform'],
-            'datasource': ['session', 'referential'],
-            'platforms/{id}/config': ['name'],
+            'transfo': ('name', 'source', 'target'),
+            'transfos/type': ('name',),
+            'transfotree': ('name', 'transfos'),
+            'referential': ('name', 'sensor'),
+            'sensor': ('name',),
+            'platform': ('name',),
+            'project': ('name',),
+            'session': ('name', 'project', 'platform'),
+            'datasource': ('session', 'referential'),
+            'platforms/{id}/config': ('name',),
         }
 
         if args.api_url:
@@ -285,22 +285,22 @@ class NoObj(ApiObj):
 
 class Sensor(ApiObj):
     def __init__(self, obj=None, **kwarg):
-        keys = ['id', 'name', 'type', 'description',
-                'serial_number', 'specifications']
+        keys = ('id', 'name', 'type', 'description',
+                'serial_number', 'specifications')
         super().__init__('sensor', keys, obj, **kwarg)
         self.obj.setdefault('serial_number', '')
 
 
 class Referential(ApiObj):
     def __init__(self, sensor, obj=None, **kwarg):
-        keys = ['id', 'name', 'description', 'srid']
+        keys = ('id', 'name', 'description', 'srid')
         super().__init__('referential', keys, obj, **kwarg)
         self.objs = {'sensor': sensor}
 
 
 class TransfoType(ApiObj):
     def __init__(self, obj=None, **kwarg):
-        keys = ['id', 'name', 'description', 'func_signature']
+        keys = ('id', 'name', 'description', 'func_signature')
         super().__init__('transfos/type', keys, obj, **kwarg)
 
     def update(self, **kwarg):
@@ -318,8 +318,8 @@ class Transfo(ApiObj):
             transfo_type.obj = transfo_type.obj.copy()
             transfo_type.obj['func_signature'] = func_signature
 
-        keys = ['id', 'name', 'description', 'parameters', 'tdate',
-                'validity_start', 'validity_end']
+        keys = ('id', 'name', 'description', 'parameters', 'tdate',
+                'validity_start', 'validity_end')
         if reverse:
             source, target = target, source
         super().__init__('transfo', keys, obj, **kwarg)
@@ -343,7 +343,7 @@ class Transfo(ApiObj):
 
 class Transfotree(ApiObj):
     def __init__(self, transfos, obj=None, **kwarg):
-        keys = ['id', 'name', 'owner', 'sensor_connections']
+        keys = ('id', 'name', 'owner', 'sensor_connections')
         super().__init__('transfotree', keys, obj, **kwarg)
         self.obj.setdefault('sensor_connections', False)
         self.obj.setdefault('owner', getpass.getuser())
@@ -352,27 +352,27 @@ class Transfotree(ApiObj):
 
 class Project(ApiObj):
     def __init__(self, obj=None, **kwarg):
-        keys = ['id', 'name', 'extent', 'timezone']
+        keys = ('id', 'name', 'extent', 'timezone')
         super().__init__('project', keys, obj, **kwarg)
         self.obj.setdefault('timezone', 'Europe/Paris')
 
 
 class Platform(ApiObj):
     def __init__(self, obj=None, **kwarg):
-        keys = ['id', 'name', 'description', 'start_time', 'end_time']
+        keys = ('id', 'name', 'description', 'start_time', 'end_time')
         super().__init__('platform', keys, obj, **kwarg)
 
 
 class Session(ApiObj):
     def __init__(self, project, platform, obj=None, **kwarg):
-        keys = ['id', 'name', 'start_time', 'end_time']
+        keys = ('id', 'name', 'start_time', 'end_time')
         super().__init__('session', keys, obj, **kwarg)
         self.objs = {'project': project, 'platform': platform}
 
 
 class Datasource(ApiObj):
     def __init__(self, session, referential, obj=None, **kwarg):
-        keys = ['id', 'uri']
+        keys = ('id', 'uri')
         super().__init__('datasource', keys, obj, **kwarg)
         self.objs = {'session': session, 'referential': referential}
 
@@ -385,7 +385,7 @@ class Datasource(ApiObj):
 
 class Config(ApiObj):
     def __init__(self, platform, transfotrees, obj=None, **kwarg):
-        keys = ['id', 'name', 'description', 'root', 'srid']
+        keys = ('id', 'name', 'description', 'root', 'srid')
         super().__init__('platforms/{id}/config', keys, obj, **kwarg)
         self.objs = {'platform': platform}
         self.arrays = {'transfo_trees': transfotrees}
@@ -394,8 +394,8 @@ class Config(ApiObj):
 
 
 def update_obj(args, metadata, obj, type_):
-    noname = ['datasource']
-    nodesc = ['datasource', 'transfotree', 'project', 'session']
+    noname = ('datasource',)
+    nodesc = ('datasource', 'transfotree', 'project', 'session')
     if all(not type_.startswith(s) for s in noname):
         obj.setdefault('name', '{basename}')
     if all(not type_.startswith(s) for s in nodesc):
