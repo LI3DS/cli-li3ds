@@ -2,6 +2,7 @@ import os
 import logging
 import datetime
 import pytz
+import pathlib
 
 from cliff.command import Command
 
@@ -10,7 +11,7 @@ from . import xmlutil
 
 
 class ImportOrimatis(Command):
-    """ import an Ori-Matis file
+    """ import Ori-Matis files
     """
 
     log = logging.getLogger(__name__)
@@ -53,11 +54,17 @@ class ImportOrimatis(Command):
             help='validity end date for transfos (optional, '
                  'default is valid until forever)')
         parser.add_argument(
-            '--image-dir', '-I',
-            help='directory where image files are stored (optional)')
+            '--base-image-dir', '-b',
+            help='base image directory in image URIs (optional, '
+                 'default is no base image directory)')
         parser.add_argument(
-            'filename', nargs='+',
-            help='the list of orimatis filenames')
+            '--orimatis-dir', '-f',
+            help='base directory to search for orimatis files (optional, '
+                 'default is ".")')
+        parser.add_argument(
+            'filenames', nargs='+',
+            help='the orimatis file names, may be Unix style patterns '
+                 '(e.g. Paris-100-*.ori.xml)')
         return parser
 
     def take_action(self, parsed_args):
@@ -65,7 +72,6 @@ class ImportOrimatis(Command):
         Create or update a camera sensor.
         """
         server = api.ApiServer(parsed_args, self.log)
-        image_dir = parsed_args.image_dir
 
         args = {
             'sensor': {
@@ -92,16 +98,34 @@ class ImportOrimatis(Command):
                     'owner': parsed_args.owner,
             },
         }
-        for filename in parsed_args.filename:
-            self.log.info('Importing {}'.format(filename))
-            ApiObjs(args, filename, image_dir).get_or_create(server)
-            self.log.info('Success!\n')
+
+        if parsed_args.base_image_dir:
+            base_image_path = pathlib.Path(parsed_args.base_image_dir)
+        else:
+            base_image_path = None
+
+        if parsed_args.orimatis_dir:
+            orimatis_path = pathlib.Path(parsed_args.orimatis_dir)
+        else:
+            orimatis_path = pathlib.Path('.')
+
+        for filename in parsed_args.filenames:
+            for path_abs in orimatis_path.rglob(filename):
+                path_rel = path_abs.relative_to(orimatis_path)
+                self.log.info('Importing {}'.format(path_abs))
+                paths = (path_abs, path_rel)
+                objs = ApiObjs(args, paths, base_image_path)
+                objs.get_or_create(server)
+                self.log.info('Success!\n')
 
 
 class ApiObjs(api.ApiObjs):
-    def __init__(self, args, filename, image_dir):
+    def __init__(self, args, orimatis_file, base_image_path):
+
+        orimatis_abs, orimatis_rel = orimatis_file
+
         # open XML file
-        root = xmlutil.root(filename, 'orientation')
+        root = xmlutil.root(str(orimatis_abs), 'orientation')
         xmlutil.child_check(root, 'version', '1.0')
 
         sensor_node = root.find('geometry/intrinseque/sensor')
@@ -119,7 +143,7 @@ class ApiObjs(api.ApiObjs):
         acquisition = ApiObjs.get_acquisition_datetime(root)
         date = xmlutil.finddate(stereopolis, 'date', ['%y%m%d'])
         metadata = {
-            'basename': os.path.basename(filename),
+            'basename': orimatis_abs.name,
             'calibration':     calibration,
             'acquisition':     acquisition,
             'date':            date,
@@ -202,7 +226,8 @@ class ApiObjs(api.ApiObjs):
         self.platform = api.Platform(platform)
         self.session = api.Session(self.project, self.platform, session)
         self.datasource = datasource_image(
-                self.session, self.ref_i, datasource, metadata, image_dir)
+            self.session, self.ref_i, datasource, metadata,
+            base_image_path, orimatis_rel.parent)
         self.config = api.Config(self.platform, [self.transfotree], config)
         super().__init__()
 
@@ -228,12 +253,16 @@ class ApiObjs(api.ApiObjs):
         return date.replace(tzinfo=pytz.UTC) if date else None
 
 
-def datasource_image(session, referential, datasource, metadata, image_dir):
+def datasource_image(session, referential, datasource,
+                     metadata, base_image_dir, subdir):
+
+    image_path = subdir / pathlib.Path(datasource.pop('image'))
+    if base_image_dir:
+        image_path = base_image_dir / image_path
+    image_path = os.path.normpath(str(image_path))
+    uri = 'file:{}'.format(image_path)
+
     image_size = metadata.get('image_size')
-    image_file = datasource.pop('image')
-    if image_dir:
-        image_file = '{}/{}'.format(image_dir, image_file)
-    uri = 'file:{}'.format(image_file)
     return api.Datasource(
             session, referential, datasource, type='image', uri=uri,
             bounds=[0, image_size[0], 0, 0, image_size[1], 0])

@@ -32,7 +32,7 @@ mm2li import-autocal  $MM2LIARGS $@ data/NewCalibD3X-*.xml -s D3X
 
 mm2li import-blinis   $MM2LIARGS $@ data/blinis_*.xml -s stea --transfotree calib20161205
 
-mm2li import-orimatis $MM2LIARGS $@ data/conic*.ori.xml -s matissensor -I $(pwd)/data
+mm2li import-orimatis $MM2LIARGS $@ 'conic*.ori.xml' -s matissensor -b $(pwd)/data/image -f $(pwd)/data
 
 mm2li import-autocal  $MM2LIARGS $@ data/Calib-00.xml --transfotree Calib-00 -s Sensor-00
 mm2li import-autocal  $MM2LIARGS $@ data/Cali*.xml
