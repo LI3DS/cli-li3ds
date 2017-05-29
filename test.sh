@@ -35,8 +35,8 @@ mm2li import-autocal  $MM2LIARGS $@ data/NewCalibD3X-pix.xml
 
 mm2li import-blinis   $MM2LIARGS $@ data/blinis_20161205.xml
 
-mm2li import-orimatis $MM2LIARGS $@ --sensor Sensor0 -b $(pwd)/data/image -f $(pwd)/data spheric.ori.xml
-mm2li import-orimatis $MM2LIARGS $@ -b $(pwd)/data/image -f $(pwd)/data 'conic*.ori.xml'
+mm2li import-orimatis $MM2LIARGS $@ --sensor Sensor0 -b $(pwd)/data/image -f $(pwd)/data  -e .tif spheric.ori.xml
+mm2li import-orimatis $MM2LIARGS $@ -b $(pwd)/data/image -f $(pwd)/data -e .tif 'conic*.ori.xml'
 
 mm2li import-ori      $MM2LIARGS $@ data/Orientation-00.xml
 mm2li import-ori      $MM2LIARGS $@ data/Orientation-1.xml

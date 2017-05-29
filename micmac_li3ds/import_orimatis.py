@@ -62,6 +62,10 @@ class ImportOrimatis(Command):
             help='base directory to search for orimatis files (optional, '
                  'default is ".")')
         parser.add_argument(
+            '--image-file-ext', '-e',
+            help='file extension to use in image URIs (optional, '
+                 'default is none, e.g. ".tif")')
+        parser.add_argument(
             'filenames', nargs='+',
             help='the orimatis file names, may be Unix style patterns '
                  '(e.g. Paris-100-*.ori.xml)')
@@ -90,12 +94,12 @@ class ImportOrimatis(Command):
                 'validity_end': parsed_args.validity_end,
             },
             'transfotree': {
-                    'name': parsed_args.transfotree,
-                    'owner': parsed_args.owner,
+                'name': parsed_args.transfotree,
+                'owner': parsed_args.owner,
             },
             'config': {
-                    'name': parsed_args.config,
-                    'owner': parsed_args.owner,
+                'name': parsed_args.config,
+                'owner': parsed_args.owner,
             },
         }
 
@@ -114,13 +118,15 @@ class ImportOrimatis(Command):
                 path_rel = path_abs.relative_to(orimatis_path)
                 self.log.info('Importing {}'.format(path_abs))
                 paths = (path_abs, path_rel)
-                objs = ApiObjs(args, paths, base_image_path)
+                objs = ApiObjs(args, paths, base_image_path,
+                               parsed_args.image_file_ext)
                 objs.get_or_create(server)
                 self.log.info('Success!\n')
 
 
 class ApiObjs(api.ApiObjs):
-    def __init__(self, args, orimatis_file, base_image_path):
+    def __init__(self, args, orimatis_file, base_image_path,
+                 image_file_ext):
 
         orimatis_abs, orimatis_rel = orimatis_file
 
@@ -181,7 +187,7 @@ class ApiObjs(api.ApiObjs):
         project = {'name': '{chantier}'}
         session = {'name': '{date:%y%m%d}/{session}/{section}'}
         datasource = {
-            'image': '{image}.tif',
+            'image': '{image}',
             'capture_start': '{acquisition_iso}',
             'capture_end': '{acquisition_iso}',
         }
@@ -227,7 +233,7 @@ class ApiObjs(api.ApiObjs):
         self.session = api.Session(self.project, self.platform, session)
         self.datasource = datasource_image(
             self.session, self.ref_i, datasource, metadata,
-            base_image_path, orimatis_rel.parent)
+            base_image_path, orimatis_rel.parent, image_file_ext)
         self.config = api.Config(self.platform, [self.transfotree], config)
         super().__init__()
 
@@ -254,11 +260,13 @@ class ApiObjs(api.ApiObjs):
 
 
 def datasource_image(session, referential, datasource,
-                     metadata, base_image_dir, subdir):
+                     metadata, base_image_dir, subdir, image_file_ext):
 
     image_path = subdir / pathlib.Path(datasource.pop('image'))
     if base_image_dir:
         image_path = base_image_dir / image_path
+    if image_file_ext:
+        image_path = image_path.with_suffix(image_file_ext)
     image_path = os.path.normpath(str(image_path))
     uri = 'file:{}'.format(image_path)
 
