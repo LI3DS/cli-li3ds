@@ -192,9 +192,10 @@ class ApiServer(object):
             all_keys.discard('description')
             for key in all_keys:
                 if obj[key] != got[key]:
+                    display_name = obj.get('name', got.get('id'))
                     err = 'Error: "{}" mismatch in {} "{}" ' \
                           '("{}" vs "{}")' \
-                          .format(key, typ, obj['name'], obj[key], got[key])
+                          .format(key, typ, display_name, obj[key], got[key])
                     raise RuntimeError(err)
 
             return got, '?'
