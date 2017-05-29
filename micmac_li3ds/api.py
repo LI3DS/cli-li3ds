@@ -42,7 +42,7 @@ class ApiServer(object):
             'platform': ('name',),
             'project': ('name',),
             'session': ('name', 'project', 'platform'),
-            'datasource': ('session', 'referential'),
+            'datasource': ('uri', 'session', 'referential'),
             'platforms/{id}/config': ('name',),
         }
 
