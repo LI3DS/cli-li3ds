@@ -83,7 +83,6 @@ class ImportOrimatis(Command):
                 'id': parsed_args.sensor_id,
             },
             'transfo_ext': {
-                'name': parsed_args.transfo,
                 'validity_start': parsed_args.acquisition,
                 'validity_end': parsed_args.acquisition,
             },
