@@ -125,5 +125,5 @@ def transfo_grp(source, target, transfo, node):
     return api.Transfo(
         source, target, transfo,
         type_name='affine_mat4x3',
-        parameters={'mat4x3': matrix},
+        parameters=[{'mat4x3': matrix}],
     )
