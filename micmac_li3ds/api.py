@@ -24,6 +24,21 @@ def add_arguments(parser):
        help='the data owner (optional, default is unix username)')
 
 
+# id column(s) for each object type
+_object_ids = {
+    'transfo': ('name', 'source', 'target'),
+    'transfos/type': ('name',),
+    'transfotree': ('name', 'transfos'),
+    'referential': ('name', 'sensor'),
+    'sensor': ('name',),
+    'platform': ('name',),
+    'project': ('name',),
+    'session': ('name', 'project', 'platform'),
+    'datasource': ('uri', 'session', 'referential'),
+    'platforms/{id}/config': ('name',),
+}
+
+
 class ApiServer(object):
 
     def __init__(self, args, log):
@@ -33,18 +48,6 @@ class ApiServer(object):
         self.staging = None
         self.log = log
         self.indent = args.indent
-        self.ids = {
-            'transfo': ('name', 'source', 'target'),
-            'transfos/type': ('name',),
-            'transfotree': ('name', 'transfos'),
-            'referential': ('name', 'sensor'),
-            'sensor': ('name',),
-            'platform': ('name',),
-            'project': ('name',),
-            'session': ('name', 'project', 'platform'),
-            'datasource': ('uri', 'session', 'referential'),
-            'platforms/{id}/config': ('name',),
-        }
 
         if args.api_url:
             if not args.api_key:
@@ -84,7 +87,7 @@ class ApiServer(object):
         if resp.status_code == 201:
             objs = resp.json()
             return objs[0]
-        err = 'Adding object failed (status code: {})'.format(
+        err = 'Adding object failed ({})'.format(
               resp.status_code)
         raise RuntimeError(err)
 
@@ -177,14 +180,14 @@ class ApiServer(object):
 
             return got, '='
 
-        if not all(k in obj for k in self.ids[typ]):
+        if not all(k in obj for k in _object_ids[typ]):
             err = 'Error: {} objects should specify ' \
                   'either their (id) or ({}) {}' \
-                  .format(typ, ','.join(self.ids[typ]), obj)
+                  .format(typ, ','.join(_object_ids[typ]), obj)
             raise RuntimeError(err)
 
         # look up by dict, and raise an error upon mismatch
-        dict_ = {k: obj[k] for k in self.ids[typ]}
+        dict_ = {k: obj[k] for k in _object_ids[typ]}
         got = self.get_object_by_dict(typ, dict_, parent)
         if got:
             # raise an error upon value mismatch for specified keys
@@ -212,13 +215,14 @@ class ApiServer(object):
         self.log.debug("<--"+json.dumps(obj, indent=self.indent))
         info = '{} ({}) {} [{}] {}'.format(
             code, obj.get('id', '?'), typ.format(**parent),
-            ', '.join([str(obj[k]) for k in self.ids[typ] if k in obj]),
+            ', '.join([str(obj[k]) for k in _object_ids[typ] if k in obj]),
             obj.get('uri', ''))
         self.log.info(info)
         return obj
 
 
 class ApiObjs:
+
     def __init__(self, api):
         self.api = api
         self.objs = []
@@ -231,6 +235,18 @@ class ApiObjs:
     def get_or_create(self):
         for obj in self.objs:
             obj.get_or_create(self.api)
+
+    def lookup(self, obj):
+        '''
+        Depth-first search of obj within the collection.
+        '''
+        for o in self.objs:
+            if o == obj:
+                return o
+            o = o.lookup(obj)
+            if o:
+                return o
+        return None
 
 
 class ApiObj:
@@ -277,6 +293,54 @@ class ApiObj:
             return {k: ApiObj.normalize_obj(v) for k, v in obj.items()
                     if v is not None}
         return {} if obj is None else obj
+
+    def lookup(self, obj):
+        '''
+        Depth-first search of obj within the object.
+        '''
+        for _, o in self.objs.items():
+            if o == obj:
+                return o
+            o = o.lookup(obj)
+            if o:
+                return o
+        for _, array in self.arrays.items():
+            for o in array:
+                if o == obj:
+                    return o
+                o = o.lookup(obj)
+                if o:
+                    return o
+        return None
+
+    def __eq__(self, other):
+        '''
+        Two ApiObj instances are equal if their "primary key" properties are equal.
+        '''
+        if id(self) == id(other):
+            return True
+        if self.type_ != other.type_:
+            return False
+        assert(self.type_ in _object_ids)
+        for id_ in _object_ids[self.type_]:
+            if (id_ in self.obj and id_ in other.obj
+                    and self.obj[id_] == other.obj[id_]):
+                continue
+            if (id_ in self.objs and id_ in other.objs
+                    and self.objs[id_] == other.objs[id_]):
+                continue
+            if (id_ in self.arrays and id_ in other.arrays
+                    and len(self.arrays[id_]) == len(other.arrays[id_])):
+                for i, _ in enumerate(self.array[id_]):
+                    if self.arrays[id_][i] == other.arrays[id_][i]:
+                        continue
+                    break
+                else:
+                    continue
+            break
+        else:
+            return True
+        return False
 
     def __bool__(self):
         return True
@@ -358,6 +422,32 @@ class Transfo(ApiObj):
             'target': target,
             'transfo_type': transfo_type
         }
+
+    def get_or_create(self, api):
+        if not self.published:
+            parameters = self.obj.get('parameters')
+            if parameters:
+
+                if len(parameters) > 1:
+                    try:
+                        parameters.sort(key=lambda elt: elt['_time'])
+                    except KeyError as e:
+                        err = 'Error: _time missing in transfo paramaters'
+                        raise RuntimeError(err)
+
+                for i, parameter in enumerate(parameters):
+                    if '_time' in parameter:
+                        parameters[i]['_time'] = isoformat(parameter['_time'])
+
+                validity_start = self.obj.get('validity_start')
+                if not validity_start and '_time' in parameters[0]:
+                    self.obj['validity_start'] = parameters[0]['_time']
+
+                validity_end = self.obj.get('validity_end')
+                if not validity_end and '_time' in parameters[-1]:
+                    self.obj['validity_end'] = parameters[-1]['_time']
+
+        return super().get_or_create(api)
 
 
 class Transfotree(ApiObj):
