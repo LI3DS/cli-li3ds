@@ -87,7 +87,7 @@ class ApiServer(object):
         if resp.status_code == 201:
             objs = resp.json()
             return objs[0]
-        err = 'Adding object failed ({})'.format(
+        err = 'Adding object failed (status code: {})'.format(
               resp.status_code)
         raise RuntimeError(err)
 
@@ -319,28 +319,34 @@ class ApiObj:
         '''
         if id(self) == id(other):
             return True
+
         if self.type_ != other.type_:
             return False
+
         assert(self.type_ in _object_ids)
+
         for id_ in _object_ids[self.type_]:
-            if (id_ in self.obj and id_ in other.obj
-                    and self.obj[id_] == other.obj[id_]):
+            if id_ in self.obj and id_ in other.obj:
+                if self.obj[id_] != other.obj[id_]:
+                    return False
                 continue
-            if (id_ in self.objs and id_ in other.objs
-                    and self.objs[id_] == other.objs[id_]):
+
+            if id_ in self.objs and id_ in other.objs:
+                if self.objs[id_] != other.objs[id_]:
+                    return False
                 continue
-            if (id_ in self.arrays and id_ in other.arrays
-                    and len(self.arrays[id_]) == len(other.arrays[id_])):
-                for i, _ in enumerate(self.array[id_]):
-                    if self.arrays[id_][i] == other.arrays[id_][i]:
-                        continue
-                    break
-                else:
-                    continue
-            break
-        else:
-            return True
-        return False
+
+            if id_ in self.arrays and id_ in other.arrays:
+                if len(self.arrays[id_]) != len(other.arrays[id_]):
+                    return False
+                for i in range(len(self.arrays[id_])):
+                    if self.arrays[id_][i] != other.arrays[id_][i]:
+                        return False
+                continue
+
+            return False
+
+        return True
 
     def __bool__(self):
         return True
