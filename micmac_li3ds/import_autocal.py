@@ -55,6 +55,7 @@ class ImportAutocal(Command):
         Create or update a camera sensor.
         """
         server = api.ApiServer(parsed_args, self.log)
+        objs = api.ApiObjs(server)
 
         args = {
             'sensor': {
@@ -74,12 +75,12 @@ class ImportAutocal(Command):
         }
         for filename in parsed_args.filename:
             self.log.info('Importing {}'.format(filename))
-            ApiObjs(args, filename).get_or_create(server)
+            self.handle_autocal(objs, args, filename)
+            objs.get_or_create()
             self.log.info('Success!\n')
 
-
-class ApiObjs(api.ApiObjs):
-    def __init__(self, args, filename, node=None):
+    @staticmethod
+    def handle_autocal(objs, args, filename, node=None):
         if node:
             file_interne = node.findtext('FileInterne')
             if file_interne:
@@ -109,36 +110,33 @@ class ApiObjs(api.ApiObjs):
 
         xmlutil.child_check(node, 'KnownConv', 'eConvApero_DistM2C')
 
-        self.sensor = sensor_camera(sensor, node)
-        target = referential_raw(self.sensor, referential)
-        self.referentials = [target]
-        self.transfos = []
-        self.image = target
+        sensor = sensor_camera(sensor, node)
+
+        target = referential_raw(sensor, referential)
+        transfos = []
 
         orintglob = node.find('OrIntGlob')
         if orintglob:
-            source = referential_distorted(self.sensor, referential)
+            source = referential_distorted(sensor, referential)
             orintglob = transfo_orintglob(source, target, transfo, orintglob)
-            self.referentials.append(source)
-            self.transfos.append(orintglob)
+            transfos.append(orintglob)
             target = source
 
         distos = reversed(xmlutil.children(node, 'CalibDistortion'))
         for i, disto in enumerate(distos):
-            source = referential_undistorted(self.sensor, referential, i)
+            source = referential_undistorted(sensor, referential, i)
             distortion = transfo_distortion(source, target, transfo, disto, i)
-            self.referentials.append(source)
-            self.transfos.append(distortion)
+            transfos.append(distortion)
             target = source
 
-        source = referential_camera(self.sensor, referential)
+        source = referential_camera(sensor, referential)
         pinhole = transfo_pinhole(source, target, transfo, node)
-        self.referentials.append(source)
-        self.transfos.append(pinhole)
-        self.camera = source
+        transfos.append(pinhole)
 
-        self.transfotree = api.Transfotree(self.transfos, transfotree)
-        super().__init__()
+        transfotree = api.Transfotree(transfos, transfotree)
+        objs.add(transfotree)
+
+        return sensor, transfotree, source, target
 
 
 def sensor_camera(sensor, node):

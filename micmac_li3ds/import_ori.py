@@ -5,7 +5,7 @@ from cliff.command import Command
 
 from . import api
 from . import xmlutil
-from . import import_autocal
+from .import_autocal import ImportAutocal
 
 
 class ImportOri(Command):
@@ -60,6 +60,7 @@ class ImportOri(Command):
         Create or update a sensor group.
         """
         server = api.ApiServer(parsed_args, self.log)
+        objs = api.ApiObjs(server)
 
         args = {
             'sensor': {
@@ -83,12 +84,12 @@ class ImportOri(Command):
         }
         for filename in parsed_args.filename:
             self.log.info('Importing {}'.format(filename))
-            ApiObjs(args, filename).get_or_create(server)
+            self.handle_ori(objs, args, filename)
+            objs.get_or_create()
             self.log.info('Success!\n')
 
-
-class ApiObjs(api.ApiObjs):
-    def __init__(self, args, filename):
+    @staticmethod
+    def handle_ori(objs, args, filename):
         metadata = {
             'basename': os.path.basename(filename),
         }
@@ -96,6 +97,7 @@ class ApiObjs(api.ApiObjs):
         transfo = {}
         transfotree = {}
         transfotree_all = {}
+
         api.update_obj(args, metadata, referential, 'referential')
         api.update_obj(args, metadata, transfo, 'transfo')
         api.update_obj(args, metadata, transfotree, 'transfotree')
@@ -106,19 +108,19 @@ class ApiObjs(api.ApiObjs):
         xmlutil.child_check(node, 'ConvOri/KnownConv', 'eConvApero_DistM2C')
         xmlutil.child_check(node, 'TypeProj', 'eProjStenope')
 
-        intrinsics = import_autocal.ApiObjs(args, filename, node)
-        self.sensor = intrinsics.sensor
-        self.transfotree_int = intrinsics.transfotree
+        intrinsics = ImportAutocal.handle_autocal(objs, args, filename, node)
+        sensor, transfotree, camera_ref, image_ref = intrinsics
 
-        self.world = api.Referential(self.sensor, referential, name='world')
-        self.image = api.Referential(self.sensor, referential, name='image')
+        world = api.Referential(sensor, referential, name='world')
+        image = api.Referential(sensor, referential, name='image')
 
-        self.pose = transfo_pose(self.world, intrinsics.camera, transfo, node)
-        self.orint = transfo_orint(intrinsics.image, self.image, transfo, node)
-        self.transfos = [self.orint, self.pose]
-        self.transfos.extend(self.transfotree_int.arrays['transfos'])
-        self.transfotree = api.Transfotree(self.transfos, transfotree_all)
-        super().__init__()
+        pose = transfo_pose(world, camera_ref, transfo, node)
+        orint = transfo_orint(image_ref, image, transfo, node)
+        transfos = [orint, pose]
+
+        transfos.extend(transfotree.arrays['transfos'])
+
+        objs.add(api.Transfotree(transfos, transfotree_all))
 
 
 def transfo_pose(source, target, transfo, node):
