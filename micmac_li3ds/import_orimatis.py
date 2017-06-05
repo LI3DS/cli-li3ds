@@ -386,7 +386,7 @@ def transfo_quat(source, target, transfo, root):
     p = xmlutil.child_floats(node, 'sommet/[easting,northing,altitude]')
     reverse = xmlutil.child_bool(node, 'rotation/Image2Ground')
     if node.find('rotation/quaternion') is None:
-        return api.NoObj
+        return api.noobj
 
     quat = xmlutil.child_floats(node, 'rotation/quaternion/[x,y,z,w]')
     return api.Transfo(
@@ -403,7 +403,7 @@ def transfo_matr(source, target, transfo, root):
     p = xmlutil.child_floats(node, 'sommet/[easting,northing,altitude]')
     reverse = xmlutil.child_bool(node, 'rotation/Image2Ground')
     if node.find('rotation/mat3d') is None:
-        return api.NoObj
+        return api.noobj
 
     l1 = xmlutil.child_floats(node, 'rotation/mat3d/l1/pt3d/[x,y,z]')
     l2 = xmlutil.child_floats(node, 'rotation/mat3d/l2/pt3d/[x,y,z]')

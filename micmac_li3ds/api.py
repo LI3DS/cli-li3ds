@@ -233,7 +233,7 @@ class ApiObj:
         self.obj = {}
         self.objs = {}
         self.arrays = {}
-        self.parent = NoObj
+        self.parent = noobj
         if obj:
             self.update(**obj)
         self.update(**kwarg)
@@ -247,7 +247,7 @@ class ApiObj:
 
         for key in self.arrays:
             ids = [obj.get_or_create(api).obj['id'] for obj in self.arrays[key]
-                   if obj is not NoObj]
+                   if obj is not noobj]
             self.obj[key] = sorted(ids)
 
         obj = api.get_or_create(self.entrypoint, self.obj, self.parent.obj)
@@ -274,14 +274,21 @@ class ApiObj:
         return True
 
 
-class NoObj(ApiObj):
+class _NoObj(ApiObj):
     obj = {}
+    entrypoint = 'noobj'
 
-    def get_or_create(api):
-        return NoObj
+    def __init__(self):
+        pass
 
-    def __nonzero__():
+    def get_or_create(self, api):
+        return self
+
+    def __nonzero__(self):
         return False
+
+
+noobj = _NoObj()
 
 
 class Sensor(ApiObj):
@@ -313,7 +320,7 @@ class TransfoType(ApiObj):
 
 class Transfo(ApiObj):
     def __init__(self, source, target, obj=None, reverse=False,
-                 transfo_type=NoObj, type_id=None, type_name=None,
+                 transfo_type=noobj, type_id=None, type_name=None,
                  type_description=None, func_signature=None, **kwarg):
         if func_signature and transfo_type:
             transfo_type.obj = transfo_type.obj.copy()
@@ -325,7 +332,7 @@ class Transfo(ApiObj):
             source, target = target, source
         super().__init__('transfo', keys, obj, **kwarg)
 
-        if transfo_type is NoObj:
+        if transfo_type is noobj:
             parameters = self.obj.get('parameters')
             keys = list(parameters.keys()) if parameters else None
             keys = func_signature or keys
