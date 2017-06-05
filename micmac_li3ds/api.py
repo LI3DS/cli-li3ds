@@ -219,10 +219,18 @@ class ApiServer(object):
 
 
 class ApiObjs:
-    def get_or_create(self, api):
-        for obj in self.__dict__.values():
-            if isinstance(obj, ApiObj):
-                obj.get_or_create(api)
+    def __init__(self, api):
+        self.api = api
+        self.objs = []
+
+    def add(self, *objs):
+        for obj in objs:
+            assert(isinstance(obj, ApiObj))
+            self.objs.append(obj)
+
+    def get_or_create(self):
+        for obj in self.objs:
+            obj.get_or_create(self.api)
 
 
 class ApiObj:

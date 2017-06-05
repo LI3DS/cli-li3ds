@@ -117,15 +117,15 @@ class ImportOrimatis(Command):
                 path_rel = path_abs.relative_to(orimatis_path)
                 self.log.info('Importing {}'.format(path_abs))
                 paths = (path_abs, path_rel)
-                objs = ApiObjs(args, paths, base_image_path,
-                               parsed_args.image_file_ext)
-                objs.get_or_create(server)
+                objs = api.ApiObjs(server)
+                self.handle_orimatis(objs, args, paths, base_image_path,
+                                     parsed_args.image_file_ext)
+                objs.get_or_create()
                 self.log.info('Success!\n')
 
-
-class ApiObjs(api.ApiObjs):
-    def __init__(self, args, orimatis_file, base_image_path,
-                 image_file_ext):
+    @staticmethod
+    def handle_orimatis(objs, args, orimatis_file, base_image_path,
+                        image_file_ext):
 
         orimatis_abs, orimatis_rel = orimatis_file
 
@@ -144,8 +144,8 @@ class ApiObjs(api.ApiObjs):
         # retrieve metadata
         stereopolis = xmlutil.child(root, 'auxiliarydata/stereopolis')
         extrinseque = xmlutil.child(root, 'geometry/extrinseque')
-        calibration = ApiObjs.get_calibration_datetime(root)
-        acquisition = ApiObjs.get_acquisition_datetime(root)
+        calibration = get_calibration_datetime(root)
+        acquisition = get_acquisition_datetime(root)
         date = xmlutil.finddate(stereopolis, 'date', ['%y%m%d'])
         metadata = {
             'basename': orimatis_abs.name,
@@ -205,57 +205,58 @@ class ApiObjs(api.ApiObjs):
         api.update_obj(args, metadata, config, 'config')
 
         # get or create sensor
-        self.sensor = sensor_camera(sensor, node, metadata)
+        sensor = sensor_camera(sensor, node, metadata)
 
         # get or create world, euclidean and rawImage referentials
-        self.ref_w = referential_world(self.sensor, referential, metadata)
-        self.ref_e = referential_eucli(self.sensor, referential)
-        self.ref_i = referential_image(self.sensor, referential)
+        ref_w = referential_world(sensor, referential, metadata)
+        ref_e = referential_eucli(sensor, referential)
+        ref_i = referential_image(sensor, referential)
 
         # get or create matr, quat, pinh, dist or sphe transforms
-        self.matr = transfo_matr(self.ref_w, self.ref_e, transfo_ext, root)
-        self.quat = transfo_quat(self.ref_w, self.ref_e, transfo_ext, root)
+        matr = transfo_matr(ref_w, ref_e, transfo_ext, root)
+        quat = transfo_quat(ref_w, ref_e, transfo_ext, root)
 
         if sensor_node:
-            self.ref_u = referential_undis(self.sensor, referential)
-            self.pinh = transfo_pinh(self.ref_e, self.ref_u, transfo_int, root)
-            self.dist = transfo_dist(self.ref_u, self.ref_i, transfo_int, root)
-            transfos = [self.quat or self.matr, self.pinh, self.dist]
+            ref_u = referential_undis(sensor, referential)
+            pinh = transfo_pinh(ref_e, ref_u, transfo_int, root)
+            dist = transfo_dist(ref_u, ref_i, transfo_int, root)
+            transfos = [quat or matr, pinh, dist]
 
         else:
-            self.sphe = transfo_sphe(self.ref_e, self.ref_i, transfo_int, root)
-            transfos = [self.quat or self.matr, self.sphe]
+            sphe = transfo_sphe(ref_e, ref_i, transfo_int, root)
+            transfos = [quat or matr, sphe]
 
-        self.transfotree = api.Transfotree(transfos, transfotree)
-        self.project = api.Project(project)
-        self.platform = api.Platform(platform)
-        self.session = api.Session(self.project, self.platform, session)
-        self.datasource = datasource_image(
-            self.session, self.ref_i, datasource, metadata,
+        transfotree = api.Transfotree(transfos, transfotree)
+        project = api.Project(project)
+        platform = api.Platform(platform)
+        session = api.Session(project, platform, session)
+        datasource = datasource_image(
+            session, ref_i, datasource, metadata,
             base_image_path, orimatis_rel.parent, image_file_ext)
-        self.config = api.Config(self.platform, [self.transfotree], config)
-        super().__init__()
+        config = api.Config(platform, [transfotree], config)
 
-    @staticmethod
-    def get_acquisition_datetime(root):
+        objs.add(datasource, config)
 
-        node = xmlutil.child(root, 'auxiliarydata/image_date')
-        Y = xmlutil.child_int(node, 'year')
-        m = xmlutil.child_int(node, 'month')
-        d = xmlutil.child_int(node, 'day')
-        H = xmlutil.child_int(node, 'hour')
-        M = xmlutil.child_int(node, 'minute')
-        x = xmlutil.child_float(node, 'second')
-        S = int(x)
-        s = int(1000000*(x-S))
-        xmlutil.child_check(node, 'time_system', 'UTC')
-        return datetime.datetime(Y, m, d, H, M, S, s, pytz.UTC)
 
-    @staticmethod
-    def get_calibration_datetime(root):
-        tag = 'geometry/intrinseque/sensor/calibration_date'
-        date = xmlutil.finddate(root, tag, ['%d-%m-%Y', '%m-%Y'])
-        return date.replace(tzinfo=pytz.UTC) if date else None
+def get_acquisition_datetime(root):
+
+    node = xmlutil.child(root, 'auxiliarydata/image_date')
+    Y = xmlutil.child_int(node, 'year')
+    m = xmlutil.child_int(node, 'month')
+    d = xmlutil.child_int(node, 'day')
+    H = xmlutil.child_int(node, 'hour')
+    M = xmlutil.child_int(node, 'minute')
+    x = xmlutil.child_float(node, 'second')
+    S = int(x)
+    s = int(1000000*(x-S))
+    xmlutil.child_check(node, 'time_system', 'UTC')
+    return datetime.datetime(Y, m, d, H, M, S, s, pytz.UTC)
+
+
+def get_calibration_datetime(root):
+    tag = 'geometry/intrinseque/sensor/calibration_date'
+    date = xmlutil.finddate(root, tag, ['%d-%m-%Y', '%m-%Y'])
+    return date.replace(tzinfo=pytz.UTC) if date else None
 
 
 def datasource_image(session, referential, datasource,

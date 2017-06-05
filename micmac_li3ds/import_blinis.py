@@ -56,6 +56,7 @@ class ImportBlinis(Command):
         Create or update sensor groups.
         """
         server = api.ApiServer(parsed_args, self.log)
+        objs = api.ApiObjs(server)
 
         args = {
             'sensor': {
@@ -75,12 +76,12 @@ class ImportBlinis(Command):
         }
         for filename in parsed_args.filename:
             self.log.info('Importing {}'.format(filename))
-            ApiObjs(args, filename).get_or_create(server)
+            self.handle_blinis(objs, args, filename)
+            objs.get_or_create()
             self.log.info('Success!\n')
 
-
-class ApiObjs(api.ApiObjs):
-    def __init__(self, args, filename):
+    @staticmethod
+    def handle_blinis(objs, args, filename):
         root = xmlutil.root(filename, 'StructBlockCam')
         nodes = xmlutil.children(root, 'LiaisonsSHC/ParamOrientSHC')
 
@@ -95,24 +96,23 @@ class ApiObjs(api.ApiObjs):
         api.update_obj(args, metadata, sensor, 'sensor')
         api.update_obj(args, metadata, referential, 'referential')
         api.update_obj(args, metadata, transfotree, 'transfotree')
-        self.sensor = api.Sensor(sensor)
-        self.base = api.Referential(self.sensor, referential)
 
-        self.referentials = []
-        self.transfos = []
+        sensor = api.Sensor(sensor)
+        base = api.Referential(sensor, referential)
+
+        transfos = []
         for node in nodes:
             metadata['IdGrp'] = xmlutil.findtext(node, 'IdGrp')
             referential = {'name': '{IdGrp}'}
             transfo = {'name': '{IdGrp}'}
             api.update_obj(args, metadata, referential, 'referential')
             api.update_obj(args, metadata, transfo, 'transfo')
-            referential = api.Referential(self.sensor, referential)
-            transfo = transfo_grp(self.base, referential, transfo, node)
-            self.transfos.append(transfo)
-            self.referentials.append(referential)
+            referential = api.Referential(sensor, referential)
+            transfo = transfo_grp(base, referential, transfo, node)
+            transfos.append(transfo)
 
-        self.transfotree = api.Transfotree(self.transfos, transfotree)
-        super().__init__()
+        transfotree = api.Transfotree(transfos, transfotree)
+        objs.add(transfotree)
 
 
 def transfo_grp(source, target, transfo, node):
