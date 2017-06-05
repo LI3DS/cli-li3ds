@@ -270,7 +270,7 @@ class ApiObj:
                     if v is not None}
         return {} if obj is None else obj
 
-    def __nonzero__(self):
+    def __bool__(self):
         return True
 
 
@@ -284,7 +284,7 @@ class _NoObj(ApiObj):
     def get_or_create(self, api):
         return self
 
-    def __nonzero__(self):
+    def __bool__(self):
         return False
 
 
