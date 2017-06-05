@@ -341,14 +341,17 @@ class Transfo(ApiObj):
         super().__init__('transfo', keys, obj, **kwarg)
 
         if transfo_type is noobj:
-            parameters = self.obj.get('parameters')
-            keys = list(parameters.keys()) if parameters else None
-            keys = func_signature or keys
+            if not func_signature:
+                parameters = self.obj.get('parameters')
+                if parameters:
+                    func_signature = list(parameters[0].keys())
+                    if '_time' not in func_signature:
+                        func_signature.append('_time')
             transfo_type = TransfoType(
                 id=type_id,
                 name=type_name,
                 description=type_description,
-                func_signature=keys,
+                func_signature=func_signature
             )
         self.objs = {
             'source': source,

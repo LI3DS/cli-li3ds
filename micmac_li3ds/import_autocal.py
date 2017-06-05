@@ -198,10 +198,10 @@ def transfo_pinhole(source, target, transfo, node):
         source, target, transfo,
         name='{name}#projection'.format(**transfo),
         type_name='projective_pinhole',
-        parameters={
+        parameters=[{
             'focal': xmlutil.child_float(node, 'F'),
             'ppa': xmlutil.child_floats_split(node, 'PP'),
-        },
+        }],
     )
 
 
@@ -214,7 +214,7 @@ def transfo_orintglob(source, target, transfo, node):
         source, target, transfo,
         name='{name}#orintglob'.format(**transfo),
         type_name='affine_mat3x2',
-        parameters={'mat3x2': [u[0], v[0], p[0], u[1], v[1], p[1]]},
+        parameters=[{'mat3x2': [u[0], v[0], p[0], u[1], v[1], p[1]]}],
         reverse=xmlutil.child_bool(node, 'C2M'),
     )
 
@@ -225,5 +225,5 @@ def transfo_distortion(source, target, transfo, node, i):
         source, target, transfo,
         name='{name}#distortion[{i}]'.format(i=i, **transfo),
         type_name=transfo_type,
-        parameters=parameters,
+        parameters=[parameters],
     )
