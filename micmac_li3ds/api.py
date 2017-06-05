@@ -228,7 +228,7 @@ class ApiObjs:
 class ApiObj:
     def __init__(self, type_, keys, obj=None, **kwarg):
         self.published = False
-        self.entrypoint = type_
+        self.type_ = type_
         self.keys = keys
         self.obj = {}
         self.objs = {}
@@ -250,7 +250,7 @@ class ApiObj:
                    if obj is not noobj]
             self.obj[key] = sorted(ids)
 
-        obj = api.get_or_create(self.entrypoint, self.obj, self.parent.obj)
+        obj = api.get_or_create(self.type_, self.obj, self.parent.obj)
         self.obj = obj
         self.published = True
         return self
@@ -259,7 +259,7 @@ class ApiObj:
         obj = ApiObj.normalize_obj(kwarg)
         for key in obj:
             if key not in self.keys:
-                err = 'Error: {} is invalid in {}'.format(key, self.entrypoint)
+                err = 'Error: {} is invalid in {}'.format(key, self.type_)
                 raise RuntimeError(err)
         self.obj.update(obj)
         return self
@@ -276,7 +276,7 @@ class ApiObj:
 
 class _NoObj(ApiObj):
     obj = {}
-    entrypoint = 'noobj'
+    type_ = 'noobj'
 
     def __init__(self):
         pass
