@@ -75,7 +75,7 @@ class ApiServer(object):
                 'platforms/{id}/config': [],
             }
 
-    def create_object(self, typ, obj, parent={}):
+    def create_object(self, typ, obj, parent):
         if self.staging:
             obj['id'] = len(self.staging[typ])
             self.staging[typ].append(obj)
@@ -91,7 +91,7 @@ class ApiServer(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_object_by_id(self, typ, obj_id, parent={}):
+    def get_object_by_id(self, typ, obj_id, parent):
         if self.staging:
             objs = self.staging[typ]
             return objs[obj_id] if obj_id < len(objs) else None
@@ -107,7 +107,7 @@ class ApiServer(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_object_by_name(self, typ, obj_name, parent={}):
+    def get_object_by_name(self, typ, obj_name, parent):
         if self.staging:
             objs = self.staging[typ]
             obj = [obj for obj in objs if obj.name == obj_name]
@@ -126,7 +126,7 @@ class ApiServer(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_object_by_dict(self, typ, dict_, parent={}):
+    def get_object_by_dict(self, typ, dict_, parent):
         if self.staging:
             objs = self.staging[typ]
             obj = [o for o in objs if all(
@@ -147,7 +147,7 @@ class ApiServer(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_objects(self, typ, parent={}):
+    def get_objects(self, typ, parent):
         if self.staging:
             return self.staging[typ]
 
@@ -160,7 +160,7 @@ class ApiServer(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_or_create_object(self, typ, obj, parent={}):
+    def get_or_create_object(self, typ, obj, parent):
         if 'id' in obj:
             # look up by id, raise an error upon lookup failure
             # or value mismatch for specified keys
@@ -207,15 +207,15 @@ class ApiServer(object):
         got = self.create_object(typ, obj, parent)
         return got, '+'
 
-    def get_or_create(self, typ, obj, parent={}):
+    def get_or_create(self, apiobj):
         self.log.debug('')
         if not self.staging:
-            self.log.debug("-->"+json.dumps(obj, indent=self.indent))
-        obj, code = self.get_or_create_object(typ, obj, parent)
-        self.log.debug("<--"+json.dumps(obj, indent=self.indent))
+            self.log.debug('-->' + json.dumps(apiobj.obj, indent=self.indent))
+        obj, code = self.get_or_create_object(apiobj.type_, apiobj.obj, apiobj.parent.obj)
+        self.log.debug('<--' + json.dumps(apiobj.obj, indent=self.indent))
         info = '{} ({}) {} [{}] {}'.format(
-            code, obj.get('id', '?'), typ.format(**parent),
-            ', '.join([str(obj[k]) for k in _object_ids[typ] if k in obj]),
+            code, apiobj.obj.get('id', '?'), apiobj.type_.format(**apiobj.parent.obj),
+            ', '.join(str(apiobj.obj[k]) for k in _object_ids[apiobj.type_] if k in apiobj.obj),
             obj.get('uri', ''))
         self.log.info(info)
         return obj
@@ -274,7 +274,7 @@ class ApiObj:
                    if obj is not noobj]
             self.obj[key] = sorted(ids)
 
-        obj = api.get_or_create(self.type_, self.obj, self.parent.obj)
+        obj = api.get_or_create(self)
         self.obj = obj
         self.published = True
         return self
