@@ -237,10 +237,10 @@ class ApiObjs:
 
 class ApiObj:
     key = ()
+    type_ = None
 
-    def __init__(self, type_, keys, obj=None, **kwarg):
+    def __init__(self, keys, obj=None, **kwarg):
         self.published = False
-        self.type_ = type_
         self.keys = keys
         self.obj = {}
         self.objs = {}
@@ -356,30 +356,33 @@ noobj = _NoObj()
 
 
 class Sensor(ApiObj):
+    type_ = 'sensor'
     key = ('name',)
 
     def __init__(self, obj=None, **kwarg):
         keys = ('id', 'name', 'type', 'description',
                 'serial_number', 'specifications')
-        super().__init__('sensor', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
         self.obj.setdefault('serial_number', '')
 
 
 class Referential(ApiObj):
+    type_ = 'referential'
     key = ('name', 'sensor')
 
     def __init__(self, sensor, obj=None, **kwarg):
         keys = ('id', 'name', 'description', 'srid')
-        super().__init__('referential', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
         self.objs = {'sensor': sensor}
 
 
 class TransfoType(ApiObj):
+    type_ = 'transfos/type'
     key = ('name',)
 
     def __init__(self, obj=None, **kwarg):
         keys = ('id', 'name', 'description', 'func_signature')
-        super().__init__('transfos/type', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
 
     def update(self, **kwarg):
         func_signature = kwarg.get('func_signature')
@@ -389,6 +392,7 @@ class TransfoType(ApiObj):
 
 
 class Transfo(ApiObj):
+    type_ = 'transfo'
     key = ('name', 'source', 'target')
 
     def __init__(self, source, target, obj=None, reverse=False,
@@ -402,7 +406,7 @@ class Transfo(ApiObj):
                 'validity_start', 'validity_end')
         if reverse:
             source, target = target, source
-        super().__init__('transfo', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
 
         if transfo_type is noobj:
             if not func_signature:
@@ -451,48 +455,53 @@ class Transfo(ApiObj):
 
 
 class Transfotree(ApiObj):
+    type_ = 'transfotree'
     key = ('name', 'transfos')
 
     def __init__(self, transfos, sensor=noobj, obj=None, **kwarg):
         keys = ('id', 'name', 'owner', 'sensor')
-        super().__init__('transfotree', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
         self.obj.setdefault('owner', getpass.getuser())
         self.objs = {'sensor': sensor}
         self.arrays = {'transfos': transfos}
 
 
 class Project(ApiObj):
+    type_ = 'project'
     key = ('name',)
 
     def __init__(self, obj=None, **kwarg):
         keys = ('id', 'name', 'extent', 'timezone')
-        super().__init__('project', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
         self.obj.setdefault('timezone', 'Europe/Paris')
 
 
 class Platform(ApiObj):
+    type_ = 'platform'
     key = ('name',)
 
     def __init__(self, obj=None, **kwarg):
         keys = ('id', 'name', 'description', 'start_time', 'end_time')
-        super().__init__('platform', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
 
 
 class Session(ApiObj):
+    type_ = 'session'
     key = ('name', 'project', 'platform')
 
     def __init__(self, project, platform, obj=None, **kwarg):
         keys = ('id', 'name', 'start_time', 'end_time')
-        super().__init__('session', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
         self.objs = {'project': project, 'platform': platform}
 
 
 class Datasource(ApiObj):
+    type_ = 'datasource'
     key = ('uri', 'session', 'referential')
 
     def __init__(self, session, referential, obj=None, **kwarg):
         keys = ('id', 'type', 'uri', 'bounds', 'capture_start', 'capture_end')
-        super().__init__('datasource', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
         self.objs = {'session': session, 'referential': referential}
 
     def update(self, **kwarg):
@@ -503,11 +512,12 @@ class Datasource(ApiObj):
 
 
 class Config(ApiObj):
+    type_ = 'platforms/{id}/config'
     key = ('name',)
 
     def __init__(self, platform, transfotrees, obj=None, **kwarg):
         keys = ('id', 'name', 'description', 'root', 'srid')
-        super().__init__('platforms/{id}/config', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
         self.objs = {'platform': platform}
         self.arrays = {'transfo_trees': transfotrees}
         self.obj.setdefault('owner', getpass.getuser())
