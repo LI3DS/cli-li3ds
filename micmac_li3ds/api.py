@@ -24,21 +24,6 @@ def add_arguments(parser):
        help='the data owner (optional, default is unix username)')
 
 
-# id column(s) for each object type
-_object_ids = {
-    'transfo': ('name', 'source', 'target'),
-    'transfos/type': ('name',),
-    'transfotree': ('name', 'transfos'),
-    'referential': ('name', 'sensor'),
-    'sensor': ('name',),
-    'platform': ('name',),
-    'project': ('name',),
-    'session': ('name', 'project', 'platform'),
-    'datasource': ('uri', 'session', 'referential'),
-    'platforms/{id}/config': ('name',),
-}
-
-
 class ApiServer(object):
 
     def __init__(self, args, log):
@@ -160,7 +145,7 @@ class ApiServer(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_or_create_object(self, typ, obj, parent):
+    def get_or_create_object(self, typ, obj, key, parent):
         if 'id' in obj:
             # look up by id, raise an error upon lookup failure
             # or value mismatch for specified keys
@@ -180,14 +165,14 @@ class ApiServer(object):
 
             return got, '='
 
-        if not all(k in obj for k in _object_ids[typ]):
+        if not all(k in obj for k in key):
             err = 'Error: {} objects should specify ' \
                   'either their (id) or ({}) {}' \
-                  .format(typ, ','.join(_object_ids[typ]), obj)
+                  .format(typ, ','.join(key), obj)
             raise RuntimeError(err)
 
         # look up by dict, and raise an error upon mismatch
-        dict_ = {k: obj[k] for k in _object_ids[typ]}
+        dict_ = {k: obj[k] for k in key}
         got = self.get_object_by_dict(typ, dict_, parent)
         if got:
             # raise an error upon value mismatch for specified keys
@@ -211,11 +196,12 @@ class ApiServer(object):
         self.log.debug('')
         if not self.staging:
             self.log.debug('-->' + json.dumps(apiobj.obj, indent=self.indent))
-        obj, code = self.get_or_create_object(apiobj.type_, apiobj.obj, apiobj.parent.obj)
+        obj, code = self.get_or_create_object(apiobj.type_, apiobj.obj, apiobj.key,
+                                              apiobj.parent.obj)
         self.log.debug('<--' + json.dumps(apiobj.obj, indent=self.indent))
         info = '{} ({}) {} [{}] {}'.format(
             code, apiobj.obj.get('id', '?'), apiobj.type_.format(**apiobj.parent.obj),
-            ', '.join(str(apiobj.obj[k]) for k in _object_ids[apiobj.type_] if k in apiobj.obj),
+            ', '.join(str(apiobj.obj[k]) for k in apiobj.key if k in apiobj.obj),
             obj.get('uri', ''))
         self.log.info(info)
         return obj
@@ -250,6 +236,8 @@ class ApiObjs:
 
 
 class ApiObj:
+    key = ()
+
     def __init__(self, type_, keys, obj=None, **kwarg):
         self.published = False
         self.type_ = type_
@@ -323,9 +311,7 @@ class ApiObj:
         if self.type_ != other.type_:
             return False
 
-        assert(self.type_ in _object_ids)
-
-        for id_ in _object_ids[self.type_]:
+        for id_ in self.key:
             if id_ in self.obj and id_ in other.obj:
                 if self.obj[id_] != other.obj[id_]:
                     return False
@@ -353,10 +339,10 @@ class ApiObj:
 
 
 class _NoObj(ApiObj):
-    obj = {}
     type_ = 'noobj'
 
     def __init__(self):
+        self.obj = {}
         pass
 
     def get_or_create(self, api):
@@ -370,6 +356,8 @@ noobj = _NoObj()
 
 
 class Sensor(ApiObj):
+    key = ('name',)
+
     def __init__(self, obj=None, **kwarg):
         keys = ('id', 'name', 'type', 'description',
                 'serial_number', 'specifications')
@@ -378,6 +366,8 @@ class Sensor(ApiObj):
 
 
 class Referential(ApiObj):
+    key = ('name', 'sensor')
+
     def __init__(self, sensor, obj=None, **kwarg):
         keys = ('id', 'name', 'description', 'srid')
         super().__init__('referential', keys, obj, **kwarg)
@@ -385,6 +375,8 @@ class Referential(ApiObj):
 
 
 class TransfoType(ApiObj):
+    key = ('name',)
+
     def __init__(self, obj=None, **kwarg):
         keys = ('id', 'name', 'description', 'func_signature')
         super().__init__('transfos/type', keys, obj, **kwarg)
@@ -397,6 +389,8 @@ class TransfoType(ApiObj):
 
 
 class Transfo(ApiObj):
+    key = ('name', 'source', 'target')
+
     def __init__(self, source, target, obj=None, reverse=False,
                  transfo_type=noobj, type_id=None, type_name=None,
                  type_description=None, func_signature=None, **kwarg):
@@ -457,6 +451,8 @@ class Transfo(ApiObj):
 
 
 class Transfotree(ApiObj):
+    key = ('name', 'transfos')
+
     def __init__(self, transfos, sensor=noobj, obj=None, **kwarg):
         keys = ('id', 'name', 'owner', 'sensor')
         super().__init__('transfotree', keys, obj, **kwarg)
@@ -466,6 +462,8 @@ class Transfotree(ApiObj):
 
 
 class Project(ApiObj):
+    key = ('name',)
+
     def __init__(self, obj=None, **kwarg):
         keys = ('id', 'name', 'extent', 'timezone')
         super().__init__('project', keys, obj, **kwarg)
@@ -473,12 +471,16 @@ class Project(ApiObj):
 
 
 class Platform(ApiObj):
+    key = ('name',)
+
     def __init__(self, obj=None, **kwarg):
         keys = ('id', 'name', 'description', 'start_time', 'end_time')
         super().__init__('platform', keys, obj, **kwarg)
 
 
 class Session(ApiObj):
+    key = ('name', 'project', 'platform')
+
     def __init__(self, project, platform, obj=None, **kwarg):
         keys = ('id', 'name', 'start_time', 'end_time')
         super().__init__('session', keys, obj, **kwarg)
@@ -486,6 +488,8 @@ class Session(ApiObj):
 
 
 class Datasource(ApiObj):
+    key = ('uri', 'session', 'referential')
+
     def __init__(self, session, referential, obj=None, **kwarg):
         keys = ('id', 'type', 'uri', 'bounds', 'capture_start', 'capture_end')
         super().__init__('datasource', keys, obj, **kwarg)
@@ -499,6 +503,8 @@ class Datasource(ApiObj):
 
 
 class Config(ApiObj):
+    key = ('name',)
+
     def __init__(self, platform, transfotrees, obj=None, **kwarg):
         keys = ('id', 'name', 'description', 'root', 'srid')
         super().__init__('platforms/{id}/config', keys, obj, **kwarg)
