@@ -111,7 +111,7 @@ class ImportBlinis(Command):
             transfo = transfo_grp(base, referential, transfo, node)
             transfos.append(transfo)
 
-        transfotree = api.Transfotree(transfos, transfotree)
+        transfotree = api.Transfotree(transfos, sensor, transfotree)
         objs.add(transfotree)
 
 

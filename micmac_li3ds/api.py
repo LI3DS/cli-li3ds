@@ -361,11 +361,11 @@ class Transfo(ApiObj):
 
 
 class Transfotree(ApiObj):
-    def __init__(self, transfos, obj=None, **kwarg):
-        keys = ('id', 'name', 'owner', 'sensor_connections')
+    def __init__(self, transfos, sensor=noobj, obj=None, **kwarg):
+        keys = ('id', 'name', 'owner', 'sensor')
         super().__init__('transfotree', keys, obj, **kwarg)
-        self.obj.setdefault('sensor_connections', False)
         self.obj.setdefault('owner', getpass.getuser())
+        self.objs = {'sensor': sensor}
         self.arrays = {'transfos': transfos}
 
 
