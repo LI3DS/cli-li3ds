@@ -133,7 +133,7 @@ class ImportAutocal(Command):
         pinhole = transfo_pinhole(source, target, transfo, node)
         transfos.append(pinhole)
 
-        transfotree = api.Transfotree(transfos, transfotree)
+        transfotree = api.Transfotree(transfos, sensor, transfotree)
         objs.add(transfotree)
 
         return sensor, transfotree, source, target
