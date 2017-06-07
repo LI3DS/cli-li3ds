@@ -33,18 +33,6 @@ class ApiServer(object):
         self.staging = None
         self.log = log
         self.indent = args.indent
-        self.ids = {
-            'transfo': ('name', 'source', 'target'),
-            'transfos/type': ('name',),
-            'transfotree': ('name', 'transfos'),
-            'referential': ('name', 'sensor'),
-            'sensor': ('name',),
-            'platform': ('name',),
-            'project': ('name',),
-            'session': ('name', 'project', 'platform'),
-            'datasource': ('uri', 'session', 'referential'),
-            'platforms/{id}/config': ('name',),
-        }
 
         if args.api_url:
             if not args.api_key:
@@ -72,7 +60,7 @@ class ApiServer(object):
                 'platforms/{id}/config': [],
             }
 
-    def create_object(self, typ, obj, parent={}):
+    def create_object(self, typ, obj, parent):
         if self.staging:
             obj['id'] = len(self.staging[typ])
             self.staging[typ].append(obj)
@@ -88,7 +76,7 @@ class ApiServer(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_object_by_id(self, typ, obj_id, parent={}):
+    def get_object_by_id(self, typ, obj_id, parent):
         if self.staging:
             objs = self.staging[typ]
             return objs[obj_id] if obj_id < len(objs) else None
@@ -104,7 +92,7 @@ class ApiServer(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_object_by_name(self, typ, obj_name, parent={}):
+    def get_object_by_name(self, typ, obj_name, parent):
         if self.staging:
             objs = self.staging[typ]
             obj = [obj for obj in objs if obj.name == obj_name]
@@ -123,7 +111,7 @@ class ApiServer(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_object_by_dict(self, typ, dict_, parent={}):
+    def get_object_by_dict(self, typ, dict_, parent):
         if self.staging:
             objs = self.staging[typ]
             obj = [o for o in objs if all(
@@ -144,7 +132,7 @@ class ApiServer(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_objects(self, typ, parent={}):
+    def get_objects(self, typ, parent):
         if self.staging:
             return self.staging[typ]
 
@@ -157,7 +145,7 @@ class ApiServer(object):
               resp.status_code)
         raise RuntimeError(err)
 
-    def get_or_create_object(self, typ, obj, parent={}):
+    def get_or_create_object(self, typ, obj, key, parent):
         if 'id' in obj:
             # look up by id, raise an error upon lookup failure
             # or value mismatch for specified keys
@@ -177,14 +165,14 @@ class ApiServer(object):
 
             return got, '='
 
-        if not all(k in obj for k in self.ids[typ]):
+        if not all(k in obj for k in key):
             err = 'Error: {} objects should specify ' \
                   'either their (id) or ({}) {}' \
-                  .format(typ, ','.join(self.ids[typ]), obj)
+                  .format(typ, ','.join(key), obj)
             raise RuntimeError(err)
 
         # look up by dict, and raise an error upon mismatch
-        dict_ = {k: obj[k] for k in self.ids[typ]}
+        dict_ = {k: obj[k] for k in key}
         got = self.get_object_by_dict(typ, dict_, parent)
         if got:
             # raise an error upon value mismatch for specified keys
@@ -204,21 +192,23 @@ class ApiServer(object):
         got = self.create_object(typ, obj, parent)
         return got, '+'
 
-    def get_or_create(self, typ, obj, parent={}):
+    def get_or_create(self, apiobj):
         self.log.debug('')
         if not self.staging:
-            self.log.debug("-->"+json.dumps(obj, indent=self.indent))
-        obj, code = self.get_or_create_object(typ, obj, parent)
-        self.log.debug("<--"+json.dumps(obj, indent=self.indent))
+            self.log.debug('-->' + json.dumps(apiobj.obj, indent=self.indent))
+        obj, code = self.get_or_create_object(apiobj.type_, apiobj.obj, apiobj.key,
+                                              apiobj.parent.obj)
+        self.log.debug('<--' + json.dumps(apiobj.obj, indent=self.indent))
         info = '{} ({}) {} [{}] {}'.format(
-            code, obj.get('id', '?'), typ.format(**parent),
-            ', '.join([str(obj[k]) for k in self.ids[typ] if k in obj]),
+            code, apiobj.obj.get('id', '?'), apiobj.type_.format(**apiobj.parent.obj),
+            ', '.join(str(apiobj.obj[k]) for k in apiobj.key if k in apiobj.obj),
             obj.get('uri', ''))
         self.log.info(info)
         return obj
 
 
 class ApiObjs:
+
     def __init__(self, api):
         self.api = api
         self.objs = []
@@ -232,11 +222,25 @@ class ApiObjs:
         for obj in self.objs:
             obj.get_or_create(self.api)
 
+    def lookup(self, obj):
+        '''
+        Depth-first search of obj within the collection.
+        '''
+        for o in self.objs:
+            if o == obj:
+                return o
+            o = o.lookup(obj)
+            if o:
+                return o
+        return None
+
 
 class ApiObj:
-    def __init__(self, type_, keys, obj=None, **kwarg):
+    key = ()
+    type_ = None
+
+    def __init__(self, keys, obj=None, **kwarg):
         self.published = False
-        self.type_ = type_
         self.keys = keys
         self.obj = {}
         self.objs = {}
@@ -258,7 +262,7 @@ class ApiObj:
                    if obj is not noobj]
             self.obj[key] = sorted(ids)
 
-        obj = api.get_or_create(self.type_, self.obj, self.parent.obj)
+        obj = api.get_or_create(self)
         self.obj = obj
         self.published = True
         return self
@@ -278,15 +282,67 @@ class ApiObj:
                     if v is not None}
         return {} if obj is None else obj
 
+    def lookup(self, obj):
+        '''
+        Depth-first search of obj within the object.
+        '''
+        for _, o in self.objs.items():
+            if o == obj:
+                return o
+            o = o.lookup(obj)
+            if o:
+                return o
+        for _, array in self.arrays.items():
+            for o in array:
+                if o == obj:
+                    return o
+                o = o.lookup(obj)
+                if o:
+                    return o
+        return None
+
+    def __eq__(self, other):
+        '''
+        Two ApiObj instances are equal if their "primary key" properties are equal.
+        '''
+        if id(self) == id(other):
+            return True
+
+        if self.type_ != other.type_:
+            return False
+
+        for id_ in self.key:
+            if id_ in self.obj and id_ in other.obj:
+                if self.obj[id_] != other.obj[id_]:
+                    return False
+                continue
+
+            if id_ in self.objs and id_ in other.objs:
+                if self.objs[id_] != other.objs[id_]:
+                    return False
+                continue
+
+            if id_ in self.arrays and id_ in other.arrays:
+                if len(self.arrays[id_]) != len(other.arrays[id_]):
+                    return False
+                for i in range(len(self.arrays[id_])):
+                    if self.arrays[id_][i] != other.arrays[id_][i]:
+                        return False
+                continue
+
+            return False
+
+        return True
+
     def __bool__(self):
         return True
 
 
 class _NoObj(ApiObj):
-    obj = {}
     type_ = 'noobj'
 
     def __init__(self):
+        self.obj = {}
         pass
 
     def get_or_create(self, api):
@@ -300,24 +356,33 @@ noobj = _NoObj()
 
 
 class Sensor(ApiObj):
+    type_ = 'sensor'
+    key = ('name',)
+
     def __init__(self, obj=None, **kwarg):
         keys = ('id', 'name', 'type', 'description',
                 'serial_number', 'specifications')
-        super().__init__('sensor', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
         self.obj.setdefault('serial_number', '')
 
 
 class Referential(ApiObj):
+    type_ = 'referential'
+    key = ('name', 'sensor')
+
     def __init__(self, sensor, obj=None, **kwarg):
         keys = ('id', 'name', 'description', 'srid')
-        super().__init__('referential', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
         self.objs = {'sensor': sensor}
 
 
 class TransfoType(ApiObj):
+    type_ = 'transfos/type'
+    key = ('name',)
+
     def __init__(self, obj=None, **kwarg):
         keys = ('id', 'name', 'description', 'func_signature')
-        super().__init__('transfos/type', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
 
     def update(self, **kwarg):
         func_signature = kwarg.get('func_signature')
@@ -327,6 +392,9 @@ class TransfoType(ApiObj):
 
 
 class Transfo(ApiObj):
+    type_ = 'transfo'
+    key = ('name', 'source', 'target')
+
     def __init__(self, source, target, obj=None, reverse=False,
                  transfo_type=noobj, type_id=None, type_name=None,
                  type_description=None, func_signature=None, **kwarg):
@@ -338,7 +406,7 @@ class Transfo(ApiObj):
                 'validity_start', 'validity_end')
         if reverse:
             source, target = target, source
-        super().__init__('transfo', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
 
         if transfo_type is noobj:
             if not func_signature:
@@ -359,40 +427,81 @@ class Transfo(ApiObj):
             'transfo_type': transfo_type
         }
 
+    def get_or_create(self, api):
+        if not self.published:
+            parameters = self.obj.get('parameters')
+            if parameters:
+
+                if len(parameters) > 1:
+                    try:
+                        parameters.sort(key=lambda elt: elt['_time'])
+                    except KeyError as e:
+                        err = 'Error: _time missing in transfo paramaters'
+                        raise RuntimeError(err)
+
+                for i, parameter in enumerate(parameters):
+                    if '_time' in parameter:
+                        parameters[i]['_time'] = isoformat(parameter['_time'])
+
+                validity_start = self.obj.get('validity_start')
+                if not validity_start and '_time' in parameters[0]:
+                    self.obj['validity_start'] = parameters[0]['_time']
+
+                validity_end = self.obj.get('validity_end')
+                if not validity_end and '_time' in parameters[-1]:
+                    self.obj['validity_end'] = parameters[-1]['_time']
+
+        return super().get_or_create(api)
+
 
 class Transfotree(ApiObj):
+    type_ = 'transfotree'
+    key = ('name', 'transfos')
+
     def __init__(self, transfos, sensor=noobj, obj=None, **kwarg):
         keys = ('id', 'name', 'owner', 'sensor')
-        super().__init__('transfotree', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
         self.obj.setdefault('owner', getpass.getuser())
         self.objs = {'sensor': sensor}
         self.arrays = {'transfos': transfos}
 
 
 class Project(ApiObj):
+    type_ = 'project'
+    key = ('name',)
+
     def __init__(self, obj=None, **kwarg):
         keys = ('id', 'name', 'extent', 'timezone')
-        super().__init__('project', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
         self.obj.setdefault('timezone', 'Europe/Paris')
 
 
 class Platform(ApiObj):
+    type_ = 'platform'
+    key = ('name',)
+
     def __init__(self, obj=None, **kwarg):
         keys = ('id', 'name', 'description', 'start_time', 'end_time')
-        super().__init__('platform', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
 
 
 class Session(ApiObj):
+    type_ = 'session'
+    key = ('name', 'project', 'platform')
+
     def __init__(self, project, platform, obj=None, **kwarg):
         keys = ('id', 'name', 'start_time', 'end_time')
-        super().__init__('session', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
         self.objs = {'project': project, 'platform': platform}
 
 
 class Datasource(ApiObj):
+    type_ = 'datasource'
+    key = ('uri', 'session', 'referential')
+
     def __init__(self, session, referential, obj=None, **kwarg):
         keys = ('id', 'type', 'uri', 'bounds', 'capture_start', 'capture_end')
-        super().__init__('datasource', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
         self.objs = {'session': session, 'referential': referential}
 
     def update(self, **kwarg):
@@ -403,9 +512,12 @@ class Datasource(ApiObj):
 
 
 class Config(ApiObj):
+    type_ = 'platforms/{id}/config'
+    key = ('name',)
+
     def __init__(self, platform, transfotrees, obj=None, **kwarg):
         keys = ('id', 'name', 'description', 'root', 'srid')
-        super().__init__('platforms/{id}/config', keys, obj, **kwarg)
+        super().__init__(keys, obj, **kwarg)
         self.objs = {'platform': platform}
         self.arrays = {'transfo_trees': transfotrees}
         self.obj.setdefault('owner', getpass.getuser())

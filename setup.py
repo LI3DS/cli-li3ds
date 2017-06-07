@@ -13,6 +13,7 @@ requirements = (
 )
 
 dev_requirements = (
+    'pytest',
 )
 
 doc_requirements = (

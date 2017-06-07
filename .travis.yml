@@ -7,6 +7,7 @@ install:
 
 script:
 - flake8 micmac_li3ds
-- pip install -e .
+- pip install -e .[dev]
+- py.test -v test
 - ./test.sh
 - ./test_names.sh

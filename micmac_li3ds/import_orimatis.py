@@ -76,6 +76,7 @@ class ImportOrimatis(Command):
         Create or update a camera sensor.
         """
         server = api.ApiServer(parsed_args, self.log)
+        objs = api.ApiObjs(server)
 
         args = {
             'sensor': {
@@ -83,6 +84,7 @@ class ImportOrimatis(Command):
                 'id': parsed_args.sensor_id,
             },
             'transfo_ext': {
+                'name': parsed_args.sensor,
                 'validity_start': parsed_args.acquisition,
                 'validity_end': parsed_args.acquisition,
             },
@@ -108,29 +110,27 @@ class ImportOrimatis(Command):
             base_image_path = None
 
         if parsed_args.orimatis_dir:
-            orimatis_path = pathlib.Path(parsed_args.orimatis_dir)
+            orimatis_dir_path = pathlib.Path(parsed_args.orimatis_dir)
         else:
-            orimatis_path = pathlib.Path('.')
+            orimatis_dir_path = pathlib.Path('.')
 
         for filename in parsed_args.filenames:
-            for path_abs in orimatis_path.rglob(filename):
-                path_rel = path_abs.relative_to(orimatis_path)
-                self.log.info('Importing {}'.format(path_abs))
-                paths = (path_abs, path_rel)
-                objs = api.ApiObjs(server)
-                self.handle_orimatis(objs, args, paths, base_image_path,
-                                     parsed_args.image_file_ext)
-                objs.get_or_create()
-                self.log.info('Success!\n')
+            for orimatis_abs_path in orimatis_dir_path.rglob(filename):
+                orimatis_rel_path = orimatis_abs_path.relative_to(orimatis_dir_path)
+                self.log.info('Importing {}'.format(orimatis_abs_path))
+                self.handle_orimatis(
+                    objs, args, orimatis_abs_path, orimatis_rel_path, base_image_path,
+                    parsed_args.image_file_ext)
+
+        objs.get_or_create()
+        self.log.info('Success!\n')
 
     @staticmethod
-    def handle_orimatis(objs, args, orimatis_file, base_image_path,
-                        image_file_ext):
-
-        orimatis_abs, orimatis_rel = orimatis_file
+    def handle_orimatis(objs, args, orimatis_abs_path, orimatis_rel_path,
+                        base_image_path, image_file_ext):
 
         # open XML file
-        root = xmlutil.root(str(orimatis_abs), 'orientation')
+        root = xmlutil.root(str(orimatis_abs_path), 'orientation')
         xmlutil.child_check(root, 'version', '1.0')
 
         sensor_node = root.find('geometry/intrinseque/sensor')
@@ -148,7 +148,7 @@ class ImportOrimatis(Command):
         acquisition = get_acquisition_datetime(root)
         date = xmlutil.finddate(stereopolis, 'date', ['%y%m%d'])
         metadata = {
-            'basename': orimatis_abs.name,
+            'basename': orimatis_abs_path.name,
             'calibration':     calibration,
             'acquisition':     acquisition,
             'date':            date,
@@ -177,8 +177,7 @@ class ImportOrimatis(Command):
             'serial_number': '{serial}',
         }
         transfo_ext = {
-            'validity_start': '{acquisition_iso}',
-            'validity_end': '{acquisition_iso}',
+            'name': '{sensor}',
         }
         transfo_int = {'tdate': '{calibration_iso}'}
         referential = {'name': '{position}'}
@@ -212,16 +211,32 @@ class ImportOrimatis(Command):
         ref_e = referential_eucli(sensor, referential)
         ref_i = referential_image(sensor, referential)
 
-        # get or create matr, quat, pinh, dist or sphe transforms
-        matr = transfo_matr(ref_w, ref_e, transfo_ext, root)
-        quat = transfo_quat(ref_w, ref_e, transfo_ext, root)
+        # get or create matr transform
+        matr = transfo_matr(ref_w, ref_e, transfo_ext, acquisition, root)
+        if matr:
+            o = objs.lookup(matr)
+            if o:
+                # we already have that matr transform so just update its
+                # parameters list
+                o.obj['parameters'].append(matr.obj['parameters'][0])
+                matr = o
 
+        # get or create quat transform
+        quat = transfo_quat(ref_w, ref_e, transfo_ext, acquisition, root)
+        if quat:
+            o = objs.lookup(quat)
+            if o:
+                # we already have that quat transform so just update its
+                # parameters list
+                o.obj['parameters'].append(quat.obj['parameters'][0])
+                quat = o
+
+        # get or create pinh, dist or sphe transforms
         if sensor_node:
             ref_u = referential_undis(sensor, referential)
             pinh = transfo_pinh(ref_e, ref_u, transfo_int, root)
             dist = transfo_dist(ref_u, ref_i, transfo_int, root)
             transfos = [quat or matr, pinh, dist]
-
         else:
             sphe = transfo_sphe(ref_e, ref_i, transfo_int, root)
             transfos = [quat or matr, sphe]
@@ -232,7 +247,7 @@ class ImportOrimatis(Command):
         session = api.Session(project, platform, session)
         datasource = datasource_image(
             session, ref_i, datasource, metadata,
-            base_image_path, orimatis_rel.parent, image_file_ext)
+            base_image_path, orimatis_rel_path.parent, image_file_ext)
         config = api.Config(platform, [transfotree], config)
 
         objs.add(datasource, config)
@@ -382,7 +397,7 @@ def transfo_dist(source, target, transfo, root):
     )
 
 
-def transfo_quat(source, target, transfo, root):
+def transfo_quat(source, target, transfo, acquisition, root):
     node = xmlutil.child(root, 'geometry/extrinseque')
     p = xmlutil.child_floats(node, 'sommet/[easting,northing,altitude]')
     reverse = xmlutil.child_bool(node, 'rotation/Image2Ground')
@@ -394,12 +409,12 @@ def transfo_quat(source, target, transfo, root):
         source, target, transfo,
         name='{name}#quaternion'.format(**transfo),
         type_name='affine_quat',
-        parameters=[{'quat': quat, 'vec3': p}],
+        parameters=[{'quat': quat, 'vec3': p, '_time': acquisition}],
         reverse=reverse,
     )
 
 
-def transfo_matr(source, target, transfo, root):
+def transfo_matr(source, target, transfo, acquisition, root):
     node = xmlutil.child(root, 'geometry/extrinseque')
     p = xmlutil.child_floats(node, 'sommet/[easting,northing,altitude]')
     reverse = xmlutil.child_bool(node, 'rotation/Image2Ground')
@@ -422,6 +437,6 @@ def transfo_matr(source, target, transfo, root):
         source, target, transfo,
         name='{name}#mat3d'.format(**transfo),
         type_name='affine_mat4x3',
-        parameters=[{'mat4x3': matrix}],
+        parameters=[{'mat4x3': matrix, '_time': acquisition}],
         reverse=reverse,
     )
