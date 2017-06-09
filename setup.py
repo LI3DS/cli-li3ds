@@ -64,9 +64,9 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'mm2li = micmac_li3ds.main:main',
+            'li3ds = micmac_li3ds.main:main',
         ],
-        'mm2li': [
+        'li3ds': [
             'import-blinis = micmac_li3ds.import_blinis:ImportBlinis',
             'import-autocal = micmac_li3ds.import_autocal:ImportAutocal',
             'import-ori = micmac_li3ds.import_ori:ImportOri',

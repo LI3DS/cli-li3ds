@@ -22,5 +22,5 @@
 1. Use:
 
     ```
-    (li3ds) $ mm2li --help
+    (li3ds) $ li3ds --help
     ```
