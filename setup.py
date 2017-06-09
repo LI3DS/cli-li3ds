@@ -44,7 +44,7 @@ setup(
     name='cli_li3ds',
     version=find_version('cli_li3ds', '__init__.py'),
     description="Scripts to import data into the li3ds database",
-    url='https://github.com/LI3DS/micmac_li3ds',
+    url='https://github.com/LI3DS/cli-li3ds',
     author='dev',
     author_email='contact@oslandia.com',
     license='GPLv3',
