@@ -41,8 +41,8 @@ def find_version(*file_paths):
 
 
 setup(
-    name='micmac_li3ds',
-    version=find_version('micmac_li3ds', '__init__.py'),
+    name='cli_li3ds',
+    version=find_version('cli_li3ds', '__init__.py'),
     description="Scripts to import data into the li3ds database",
     url='https://github.com/LI3DS/micmac_li3ds',
     author='dev',
@@ -64,13 +64,13 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'li3ds = micmac_li3ds.main:main',
+            'li3ds = cli_li3ds.main:main',
         ],
         'li3ds': [
-            'import-blinis = micmac_li3ds.import_blinis:ImportBlinis',
-            'import-autocal = micmac_li3ds.import_autocal:ImportAutocal',
-            'import-ori = micmac_li3ds.import_ori:ImportOri',
-            'import-orimatis = micmac_li3ds.import_orimatis:ImportOrimatis',
+            'import-blinis = cli_li3ds.import_blinis:ImportBlinis',
+            'import-autocal = cli_li3ds.import_autocal:ImportAutocal',
+            'import-ori = cli_li3ds.import_ori:ImportOri',
+            'import-orimatis = cli_li3ds.import_orimatis:ImportOrimatis',
         ]
     }
 )

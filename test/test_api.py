@@ -1,6 +1,6 @@
 import pytest
 
-from micmac_li3ds import api
+from cli_li3ds import api
 
 
 def create_obj_class(t):
