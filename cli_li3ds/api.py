@@ -436,7 +436,7 @@ class Transfo(ApiObj):
                     try:
                         parameters.sort(key=lambda elt: elt['_time'])
                     except KeyError as e:
-                        err = 'Error: _time missing in transfo paramaters'
+                        err = 'Error: _time missing in transfo parameters'
                         raise RuntimeError(err)
 
                 for i, parameter in enumerate(parameters):
