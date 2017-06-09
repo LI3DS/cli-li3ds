@@ -1,8 +1,6 @@
-# micmac_li3ds
+# cli-li3ds
 
-This project is a set of python scripts to import [Micmac](https://github.com/micmacIGN/micmac)-produced datasets into the  [li3ds](https://github.com/li3ds) datastore, using its [REST api](https://github.com/li3ds/api-li3ds).
-- [Micmac](https://github.com/micmacIGN/micmac) is a free open source photogrammetry software tools.
-- [li3ds](https://github.com/li3ds) is a free open source datastore, based on postgres, for large input 3D data acquisitions :  optical images, lidar and photogrametric pointclouds, photogrammetry-estimated or directly georeferenced (GNSS) trajectories...
+This `cli-li3ds` project provides a Command Line Interface for interacting with the [LI³DS REST API](https://github.com/li3ds/api-li3ds). The CLI can for example be used to import [Micmac](https://github.com/micmacIGN/micmac)-produced datasets into the LI³DS datastore.
 
 ## Sample Dataset
 
