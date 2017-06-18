@@ -1,13 +1,18 @@
 language: python
 python:
-- "3.5"
-
+  - '3.5'
 install:
-- pip install -r requirements-ci.txt
-
+  - pip install -r requirements-ci.txt
 script:
-- flake8 cli_li3ds
-- pip install -e .[dev]
-- py.test -v test
-- ./test.sh
-- ./test_names.sh
+  - flake8 cli_li3ds
+  - pip install -e .[dev]
+  - py.test -v test
+  - "./test.sh"
+  - "./test_names.sh"
+after_success:
+  - 'test $TRAVIS_BRANCH = "master" && test $TRAVIS_PULL_REQUEST = "false" && curl -H
+    "Content-Type: application/json" -X POST https://registry.hub.docker.com/u/li3ds/li3ds/trigger/$DOCKER_API_KEY/'
+
+env:
+  global:
+    secure: Dx9U/eVZ8zGMvebliE8YL2csJdWe/6e703xA5fmcYkPeEkUonJ6SfD7RKaVluY2h+rnMdNJr2xTlOvHbAJeIuI0X1tfiLfAZInkPdc1xcg99R6zEXxeVSvAmHJIEuIDgSwC6GokftXNcvsBA6av8aZdWfkGpCxG30kXl36KLVVaWpDmFac/N0I/dbPWW0WwvZpJQHgW+DbbUwN7lIRtmyjLF8kZVJd0JJ3BicYnOhdSWfx1OpGMbD6O8lYpQtjiu1PAdW4F7IR//W5qr5HzksoD901Y3QbfoSyhf6i5UG+9rx05TC1q5llzQAfatsGdbkCLSOWRWZm7ET626HO9mHozY4/ygtWWpys9z3h+dcxE7MYAT/K3Dat6sGLAElMFIHkx9qCmWxbMDd/xkAvUeM/8rmBcCzECsktup5mdUjHwCHHusV3+IjvPa3ey6cVw6IS4mKywxYEqhE69F+9ykFxgzsi0eL9W52wnxEKTCe8GCiiZfc1vM0JpPHGxIz5dX2JlBqn+5HZxFyckV8gPm4jtrnSwkx5fJc8UN7R4qGZ1FUbudnwpidhuoLWB30fMiyG532jDDWUZ+qAtyW4DUeBEZYsk2DBXZYS0omyBzrymWjTzhiFZndZNGvGLxhAvSNEiDIXYN9q/ClTlB2otN1Z7PIDCXIRM53jFIo+uvJvw=
