@@ -1,10 +1,12 @@
 # cli-li3ds
 
+[![Travis](https://img.shields.io/travis/LI3DS/cli-li3ds.svg?style=flat-square)]() [![license](https://img.shields.io/github/license/LI3DS/cli-li3ds.svg?style=flat-square)]()
+
 This `cli-li3ds` project provides a Command Line Interface for interacting with the [LI³DS REST API](https://github.com/li3ds/api-li3ds). The CLI can for example be used to import [Micmac](https://github.com/micmacIGN/micmac)-produced datasets into the LI³DS datastore.
 
 ## Sample Dataset
 
-In the [data](data) directory, some sample files from micmac may be found, such as : 
+In the [data](data) directory, some sample files from micmac may be found, such as :
 - [AutoCal_{?}.xml](data/AutoCal_Foc-12000_Cam-Caml024_20161205a.xml) : intrinsic camera calibrations
 - [blinis_{YYYYMMDD?}.xml](data/blinis_20161205.xml) : extrinsic camera-rig calibrations
 - [{session.name?}_ori-export_{referential.name?}.txt](data/blocA_ori-export_023.txt) : SFM-estimated camera poses (using micmac/apero). This file should be augmented with image timestamps to generate a trajectory (e.g. as a sbet file)
@@ -85,7 +87,7 @@ Example Calib XML file : data/AutoCal_Foc-12000_Cam-Caml024_20161205a.xml
 ]  
 ```
 
-### Creating the Transfo-Tree of a Camera Calibration 
+### Creating the Transfo-Tree of a Camera Calibration
 (given an pre-existing camera sensor created by a similar calib file)
 
 ![XML Calib graph](https://g.gravizo.com/g?digraph%20G%20{rankdir=LR;compound=true;subgraph%20cluster_sensor{label="Camera";euclidean[shape=box];idealImage[shape=box];rawImage[shape=box;color=red];{rank=same;euclidean%20idealImage%20rawImage}subgraph%20cluster_transfotree{label="TransfoTree%20:%20AutoCal_Foc-12000_Cam-Caml024_20161205a.xml";projection;distortion;}euclidean->projection->idealImage;idealImage->distortion->rawImage;}})
