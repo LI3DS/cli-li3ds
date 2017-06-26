@@ -283,7 +283,7 @@ def datasource_image(session, referential, datasource,
     if image_file_ext:
         image_path = image_path.with_suffix(image_file_ext)
     image_path = os.path.normpath(str(image_path))
-    uri = 'file:{}'.format(image_path)
+    uri = 'file://{}'.format(image_path)
 
     image_size = metadata.get('image_size')
     return api.Datasource(
