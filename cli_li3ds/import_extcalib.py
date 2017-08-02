@@ -1,5 +1,6 @@
 import os
 import logging
+import json
 
 from cliff.command import Command
 
@@ -7,10 +8,11 @@ from . import api
 from . import xmlutil
 
 
-class ImportBlinis(Command):
-    """ import a blinis file
+class ImportExtCalib(Command):
+    """ import external calibration data
 
-        Create a sensor group and corresponding referentials and transfos.
+        The input file may be a blinis XML file or a Stereopolis cameraMetaData JSON file. The
+        command creates a sensor group and corresponding referentials and transforms.
     """
 
     log = logging.getLogger(__name__)
@@ -48,7 +50,7 @@ class ImportBlinis(Command):
                  'default is valid until forever)')
         parser.add_argument(
             'filename', nargs='+',
-            help='the list of blinis filenames')
+            help='the list of blinis XML or camera metadata JSON files')
         return parser
 
     def take_action(self, parsed_args):
@@ -76,12 +78,49 @@ class ImportBlinis(Command):
         }
         for filename in parsed_args.filename:
             self.log.info('Importing {}'.format(filename))
-            self.handle_blinis(objs, args, filename)
+            try:
+                self.handle_json_file(objs, args, filename)
+            except json.decoder.JSONDecodeError:
+                self.handle_xml_file(objs, args, filename)
             objs.get_or_create()
             self.log.info('Success!\n')
 
     @staticmethod
-    def handle_blinis(objs, args, filename):
+    def handle_json_file(objs, args, filename):
+        with open(filename) as f:
+            # raise a json.decoder.JSONDecodeError if the file content is not JSON
+            cameras = json.load(f)
+
+        metadata = {
+            'basename': os.path.basename(filename),
+        }
+
+        sensor = {'type': 'group'}
+        referential = {'name': 'base'}
+        transfotree = {}
+        api.update_obj(args, metadata, sensor, 'sensor')
+        api.update_obj(args, metadata, referential, 'referential')
+        api.update_obj(args, metadata, transfotree, 'transfotree')
+
+        sensor = api.Sensor(sensor)
+        base = api.Referential(sensor, referential)
+
+        transfos = []
+        for camera in cameras:
+            metadata['IdGrp'] = camera['id']
+            referential = {'name': '{IdGrp}'}
+            transfo = {'name': '{IdGrp}'}
+            api.update_obj(args, metadata, referential, 'referential')
+            api.update_obj(args, metadata, transfo, 'transfo')
+            referential = api.Referential(sensor, referential)
+            transfo = transfo_grp_json(base, referential, transfo, camera)
+            transfos.append(transfo)
+
+        transfotree = api.Transfotree(transfos, sensor, transfotree)
+        objs.add(transfotree)
+
+    @staticmethod
+    def handle_xml_file(objs, args, filename):
         root = xmlutil.root(filename, 'StructBlockCam')
         nodes = xmlutil.children(root, 'LiaisonsSHC/ParamOrientSHC')
 
@@ -108,22 +147,35 @@ class ImportBlinis(Command):
             api.update_obj(args, metadata, referential, 'referential')
             api.update_obj(args, metadata, transfo, 'transfo')
             referential = api.Referential(sensor, referential)
-            transfo = transfo_grp(base, referential, transfo, node)
+            transfo = transfo_grp_xml(base, referential, transfo, node)
             transfos.append(transfo)
 
         transfotree = api.Transfotree(transfos, sensor, transfotree)
         objs.add(transfotree)
 
 
-def transfo_grp(source, target, transfo, node):
-    matrix = []
-    p = xmlutil.child_floats_split(node, 'Vecteur')
-    for i, l in enumerate(('Rot/L1', 'Rot/L2', 'Rot/L3')):
-        matrix.extend(xmlutil.child_floats_split(node, l))
-        matrix.append(p[i])
-
+def transfo_grp(source, target, transfo, matrix):
     return api.Transfo(
         source, target, transfo,
         type_name='affine_mat4x3',
         parameters=[{'mat4x3': matrix}],
     )
+
+
+def transfo_grp_json(source, target, transfo, node):
+    matrix = []
+    p = node['position']
+    r = node['rotation']
+    for i in range(0, 3):
+        matrix.extend(r[i:i+3])
+        matrix.append(p[i])
+    return transfo_grp(source, target, transfo, matrix)
+
+
+def transfo_grp_xml(source, target, transfo, node):
+    matrix = []
+    p = xmlutil.child_floats_split(node, 'Vecteur')
+    for i, l in enumerate(('Rot/L1', 'Rot/L2', 'Rot/L3')):
+        matrix.extend(xmlutil.child_floats_split(node, l))
+        matrix.append(p[i])
+    return transfo_grp(source, target, transfo, matrix)
