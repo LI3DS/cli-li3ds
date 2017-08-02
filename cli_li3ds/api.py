@@ -531,7 +531,7 @@ def update_obj(args, metadata, obj, type_):
         obj.setdefault('name', '{basename}')
     if all(not type_.startswith(s) for s in nodesc):
         obj.setdefault('description', 'Imported from "{basename}"')
-    if type_ in args:
+    if args and type_ in args:
         obj.update({k: v for k, v in args[type_].items() if v})
     metadata_no_none = {k: v for k, v in metadata.items() if v is not None}
     for key in list(obj.keys()):
