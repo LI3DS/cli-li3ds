@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 
 from cliff.command import Command
@@ -46,8 +47,14 @@ class ImportAutocal(Command):
             help='validity end date for transfos (optional, '
                  'default is valid until forever)')
         parser.add_argument(
+            '--filename-pattern', '-p',
+            help='filename pattern, files whose names do not match the pattern are skipped, '
+                 'also used to get the sensor name from the file name '
+                 '(e.g. "AutoCal_Foc-4400_Cam-Head(?P<sensor_name>\d+).xml") '
+                 '(optional, default is None)')
+        parser.add_argument(
             'filename', nargs='+',
-            help='the list of autocal filename')
+            help='the list of autocal files')
         return parser
 
     def take_action(self, parsed_args):
@@ -56,6 +63,8 @@ class ImportAutocal(Command):
         """
         server = api.ApiServer(parsed_args, self.log)
         objs = api.ApiObjs(server)
+
+        filename_pattern = parsed_args.filename_pattern
 
         args = {
             'sensor': {
@@ -73,14 +82,23 @@ class ImportAutocal(Command):
                     'owner': parsed_args.owner,
             },
         }
+
         for filename in parsed_args.filename:
             self.log.info('Importing {}'.format(filename))
-            self.handle_autocal(objs, args, filename)
+            sensor_name = None
+            if filename_pattern:
+                match = re.match(filename_pattern, os.path.basename(filename))
+                if not match:
+                    self.log.info('Does not match pattern, skip')
+                    continue
+                if 'sensor_name' in match.groupdict():
+                    sensor_name = match.group('sensor_name')
+            self.handle_autocal(objs, args, filename, sensor_name)
             objs.get_or_create()
             self.log.info('Success!\n')
 
     @staticmethod
-    def handle_autocal(objs, args, filename, node=None):
+    def handle_autocal(objs, args, filename, sensor_name, node=None):
         if node:
             file_interne = node.findtext('FileInterne')
             if file_interne:
@@ -98,8 +116,11 @@ class ImportAutocal(Command):
 
         metadata = {
             'basename': os.path.basename(filename),
+            'sensor_name': sensor_name,
         }
         sensor = {'type': 'camera'}
+        if sensor_name:
+            sensor['name'] = '{sensor_name}'
         referential = {}
         transfotree = {}
         transfo = {}

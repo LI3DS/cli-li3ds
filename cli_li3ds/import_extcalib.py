@@ -95,28 +95,35 @@ class ImportExtCalib(Command):
             'basename': os.path.basename(filename),
         }
 
-        sensor = {'type': 'group'}
-        referential = {'name': 'base'}
+        sensor_group = {'type': 'group'}
+        referential_base = {'name': 'base'}
         transfotree = {}
-        api.update_obj(args, metadata, sensor, 'sensor')
-        api.update_obj(args, metadata, referential, 'referential')
+
+        api.update_obj(args, metadata, sensor_group, 'sensor')
+        api.update_obj(args, metadata, referential_base, 'referential')
         api.update_obj(args, metadata, transfotree, 'transfotree')
 
-        sensor = api.Sensor(sensor)
-        base = api.Referential(sensor, referential)
+        sensor_group = api.Sensor(sensor_group)
+        referential_base = api.Referential(sensor_group, referential_base)
 
         transfos = []
         for camera in cameras:
             metadata['IdGrp'] = camera['id']
+
+            sensor = {'name': '{IdGrp}', 'type': 'camera'}
             referential = {'name': '{IdGrp}'}
             transfo = {'name': '{IdGrp}'}
-            api.update_obj(args, metadata, referential, 'referential')
-            api.update_obj(args, metadata, transfo, 'transfo')
+
+            api.update_obj(None, metadata, sensor, 'sensor')
+            api.update_obj(None, metadata, referential, 'referential')
+            api.update_obj(None, metadata, transfo, 'transfo')
+
+            sensor = api.Sensor(sensor)
             referential = api.Referential(sensor, referential)
-            transfo = transfo_grp_json(base, referential, transfo, camera)
+            transfo = transfo_grp_json(referential_base, referential, transfo, camera)
             transfos.append(transfo)
 
-        transfotree = api.Transfotree(transfos, sensor, transfotree)
+        transfotree = api.Transfotree(transfos, sensor_group, transfotree)
         objs.add(transfotree)
 
     @staticmethod
@@ -129,28 +136,35 @@ class ImportExtCalib(Command):
             'sensor_name': xmlutil.findtext(root, 'KeyIm2TimeCam'),
         }
 
-        sensor = {'name': '{sensor_name}', 'type': 'group'}
-        referential = {'name': 'base'}
+        sensor_group = {'name': '{sensor_name}', 'type': 'group'}
+        referential_base = {'name': 'base'}
         transfotree = {}
-        api.update_obj(args, metadata, sensor, 'sensor')
-        api.update_obj(args, metadata, referential, 'referential')
+
+        api.update_obj(args, metadata, sensor_group, 'sensor')
+        api.update_obj(args, metadata, referential_base, 'referential')
         api.update_obj(args, metadata, transfotree, 'transfotree')
 
-        sensor = api.Sensor(sensor)
-        base = api.Referential(sensor, referential)
+        sensor_group = api.Sensor(sensor_group)
+        referential_base = api.Referential(sensor_group, referential_base)
 
         transfos = []
         for node in nodes:
             metadata['IdGrp'] = xmlutil.findtext(node, 'IdGrp')
+
+            sensor = {'name': '{IdGrp}', 'type': 'camera'}
             referential = {'name': '{IdGrp}'}
             transfo = {'name': '{IdGrp}'}
-            api.update_obj(args, metadata, referential, 'referential')
-            api.update_obj(args, metadata, transfo, 'transfo')
+
+            api.update_obj(None, metadata, sensor, 'sensor')
+            api.update_obj(None, metadata, referential, 'referential')
+            api.update_obj(None, metadata, transfo, 'transfo')
+
+            sensor = api.Sensor(sensor)
             referential = api.Referential(sensor, referential)
-            transfo = transfo_grp_xml(base, referential, transfo, node)
+            transfo = transfo_grp_xml(referential_base, referential, transfo, node)
             transfos.append(transfo)
 
-        transfotree = api.Transfotree(transfos, sensor, transfotree)
+        transfotree = api.Transfotree(transfos, sensor_group, transfotree)
         objs.add(transfotree)
 
 

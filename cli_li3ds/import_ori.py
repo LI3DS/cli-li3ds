@@ -108,7 +108,7 @@ class ImportOri(Command):
         xmlutil.child_check(node, 'ConvOri/KnownConv', 'eConvApero_DistM2C')
         xmlutil.child_check(node, 'TypeProj', 'eProjStenope')
 
-        intrinsics = ImportAutocal.handle_autocal(objs, args, filename, node)
+        intrinsics = ImportAutocal.handle_autocal(objs, args, filename, None, node)
         sensor, transfotree, camera_ref, image_ref = intrinsics
 
         world = api.Referential(sensor, referential, name='world')
