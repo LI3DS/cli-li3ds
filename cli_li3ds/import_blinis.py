@@ -87,10 +87,10 @@ class ImportBlinis(Command):
 
         metadata = {
             'basename': os.path.basename(filename),
-            'KeyIm2TimeCam': xmlutil.findtext(root, 'KeyIm2TimeCam'),
+            'sensor_name': xmlutil.findtext(root, 'KeyIm2TimeCam'),
         }
 
-        sensor = {'type': 'group'}
+        sensor = {'name': '{sensor_name}', 'type': 'group'}
         referential = {'name': 'base'}
         transfotree = {}
         api.update_obj(args, metadata, sensor, 'sensor')
