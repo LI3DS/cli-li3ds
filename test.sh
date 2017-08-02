@@ -23,10 +23,7 @@ fi
 
 set -x #echo on
 
-li3ds import-autocal  $li3dsARGS $@ data/AutoCal_Foc-12000_Cam-Caml024_20161205a.xml
-li3ds import-autocal  $li3dsARGS $@ data/AutoCal_Foc-12000_Cam-Caml025_20161205a.xml
-li3ds import-autocal  $li3dsARGS $@ data/AutoCal_Foc-15000_Cam-Caml023_20161205a.xml
-li3ds import-autocal  $li3dsARGS $@ data/AutoCal_Foc-15000_Cam-Caml026_20161205a.xml
+li3ds import-autocal  $li3dsARGS $@ -p 'AutoCal_Foc-1[25]000_Cam-Caml(?P<sensor_name>\d+)_20161205a.xml' data/AutoCal_Foc-*_Cam-Caml*_20161205a.xml
 li3ds import-autocal  $li3dsARGS $@ data/Calib-00.xml
 li3ds import-autocal  $li3dsARGS $@ data/Calib-1.xml
 li3ds import-autocal  $li3dsARGS $@ data/CalibFrancesco.xml
