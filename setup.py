@@ -67,7 +67,7 @@ setup(
             'li3ds = cli_li3ds.main:main',
         ],
         'li3ds': [
-            'import-blinis = cli_li3ds.import_blinis:ImportBlinis',
+            'import-extcalib = cli_li3ds.import_extcalib:ImportExtCalib',
             'import-autocal = cli_li3ds.import_autocal:ImportAutocal',
             'import-ori = cli_li3ds.import_ori:ImportOri',
             'import-orimatis = cli_li3ds.import_orimatis:ImportOrimatis',

@@ -33,7 +33,7 @@ li3ds import-autocal  $li3dsARGS $@ data/CalibFrancesco.xml
 li3ds import-autocal  $li3dsARGS $@ data/NewCalibD3X-mm.xml
 li3ds import-autocal  $li3dsARGS $@ data/NewCalibD3X-pix.xml
 
-li3ds import-blinis   $li3dsARGS $@ data/blinis_20161205.xml
+li3ds import-extcalib $li3dsARGS $@ data/blinis_20161205.xml data/cameraMetaData.json
 
 li3ds import-orimatis $li3dsARGS $@ --sensor Sensor0 -b $(pwd)/data/image -f $(pwd)/data  -e .tif spheric.ori.xml
 li3ds import-orimatis $li3dsARGS $@ -b $(pwd)/data/image -f $(pwd)/data -e .tif 'conic*.ori.xml'

@@ -30,7 +30,8 @@ li3ds import-autocal  $li3dsARGS $@ data/*-Caml026_20161205a.xml -s Caml026 --tr
 
 li3ds import-autocal  $li3dsARGS $@ data/NewCalibD3X-*.xml -s D3X
 
-li3ds import-blinis   $li3dsARGS $@ data/blinis_*.xml -s stea --transfotree calib20161205
+li3ds import-extcalib $li3dsARGS $@ data/blinis_*.xml -s stea --transfotree calib20161205
+li3ds import-extcalib $li3dsARGS $@ data/cameraMetaData.json -s stereopolis --transfotree calib201601
 
 li3ds import-orimatis $li3dsARGS $@ 'conic*.ori.xml' -s matissensor -b $(pwd)/data/image -f $(pwd)/data -e .tif
 
