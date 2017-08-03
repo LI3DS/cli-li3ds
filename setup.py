@@ -71,6 +71,7 @@ setup(
             'import-autocal = cli_li3ds.import_autocal:ImportAutocal',
             'import-ori = cli_li3ds.import_ori:ImportOri',
             'import-orimatis = cli_li3ds.import_orimatis:ImportOrimatis',
+            'import-image = cli_li3ds.import_image:ImportImage',
         ]
     }
 )
