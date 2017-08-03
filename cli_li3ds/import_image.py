@@ -24,7 +24,7 @@ class ImportImage(Command):
         api.add_arguments(parser)
         parser.add_argument(
             '--image-size', '-z',
-            nargs=2, type=int,
+            nargs=2, type=float,
             help='image size (e.g. "1200 600") (optional)')
         parser.add_argument(
             '--image-dir', '-f',
