@@ -119,7 +119,7 @@ class ApiServer(object):
             return obj[0] if obj else None
 
         url = self.api_url + '/{}s/'.format(typ.format(**parent))
-        resp = requests.get(url, headers=self.headers, proxies=self.proxies)
+        resp = requests.get(url, headers=self.headers, proxies=self.proxies, params=dict_)
         if resp.status_code == 200:
             objs = resp.json()
             try:
