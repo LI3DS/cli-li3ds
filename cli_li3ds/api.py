@@ -84,6 +84,8 @@ class ApiServer(object):
                 'session': [],
                 'datasource': [],
                 'platforms/{id}/config': [],
+                'foreignpc/server': [],
+                'foreignpc/table': [],
             }
 
     @handle_connection_errors
@@ -570,9 +572,29 @@ class Config(ApiObj):
         self.parent = platform
 
 
+class ForeignpcServer(ApiObj):
+    type_ = 'foreignpc/server'
+    key = ('name',)
+
+    def __init__(self, obj=None, **kwarg):
+        keys = ('id', 'name', 'driver', 'options')
+        super().__init__(keys, obj, **kwarg)
+
+
+class ForeignpcTable(ApiObj):
+    type_ = 'foreignpc/table'
+    key = ('table',)
+
+    def __init__(self, server, obj=None, **kwarg):
+        keys = ('table', 'srid', 'options')
+        super().__init__(keys, obj, **kwarg)
+        self.objs = {'server': server}
+
+
 def update_obj(args, metadata, obj, type_):
-    noname = ('datasource',)
-    nodesc = ('datasource', 'transfotree', 'project', 'session')
+    noname = ('datasource', 'foreignpc/table')
+    nodesc = ('datasource', 'transfotree', 'project', 'session',
+              'foreignpc/server', 'foreignpc/table')
     if all(not type_.startswith(s) for s in noname):
         obj.setdefault('name', '{basename}')
     if all(not type_.startswith(s) for s in nodesc):
