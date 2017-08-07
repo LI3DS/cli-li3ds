@@ -97,6 +97,8 @@ class ApiServer(object):
         if resp.status_code == 201:
             objs = resp.json()
             return objs[0], session
+        if resp.status_code == 404:
+            return None, session
         err = 'Adding object failed (status code: {})'.format(
               resp.status_code)
         raise RuntimeError(err)
@@ -227,6 +229,13 @@ class ApiServer(object):
             self.log.debug('-->' + json.dumps(apiobj.obj, indent=self.indent))
         obj, code, session = self.get_or_create_object(
             session, apiobj.type_, apiobj.obj, apiobj.key, apiobj.parent.obj)
+        if not obj:
+            # If obj is None it means that creating the object into the database failed because of
+            # a database integrity error ("duplicate key violation"). This may happen if a
+            # concurrent transaction sneaked in and inserted the object. So we just give
+            # get_or_create_object another chance.
+            obj, code, session = self.get_or_create_object(
+                session, apiobj.type_, apiobj.obj, apiobj.key, apiobj.parent.obj)
         self.log.debug('<--' + json.dumps(apiobj.obj, indent=self.indent))
         info = '{} ({}) {} [{}] {}'.format(
             code, apiobj.obj.get('id', '?'), apiobj.type_.format(**apiobj.parent.obj),
