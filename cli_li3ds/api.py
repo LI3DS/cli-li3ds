@@ -44,6 +44,8 @@ def handle_connection_errors(f):
             except:
                 raise
             break
+        else:
+            raise RuntimeError('Too many connection errors')
         return rv, session
     return wrapper
 
