@@ -34,19 +34,18 @@ def handle_connection_errors(f):
     def wrapper(api, session, *args):
         for attempt in range(1, MAX_REQUEST_ATTEMPTS + 1):
             try:
-                rv, session = f(api, session, *args)
+                rv = f(api, session, *args)
             except requests.exceptions.ConnectionError as e:
                 warn = 'Connection error, try again... (attempt #{})'.format(attempt)
                 api.log.warning(warn)
                 time.sleep(0.1 * attempt)
-                session = requests.Session()
                 continue
             except:
                 raise
             break
         else:
             raise RuntimeError('Too many connection errors')
-        return rv, session
+        return rv
     return wrapper
 
 
@@ -93,16 +92,16 @@ class ApiServer(object):
         if self.staging:
             obj['id'] = len(self.staging[typ])
             self.staging[typ].append(obj)
-            return obj, session
+            return obj
 
         url = self.api_url + '/{}s/'.format(typ.format(**parent))
         resp = session.post(
             url, json=obj, headers=self.headers, proxies=self.proxies)
         if resp.status_code == 201:
             objs = resp.json()
-            return objs[0], session
+            return objs[0]
         if resp.status_code == 404:
-            return None, session
+            return None
         err = 'Adding object failed (status code: {})'.format(
               resp.status_code)
         raise RuntimeError(err)
@@ -111,15 +110,15 @@ class ApiServer(object):
     def get_object_by_id(self, session, typ, obj_id, parent):
         if self.staging:
             objs = self.staging[typ]
-            return objs[obj_id] if obj_id < len(objs) else None, session
+            return objs[obj_id] if obj_id < len(objs) else None
 
         url = self.api_url + '/{}s/{:d}/'.format(typ.format(**parent), obj_id)
         resp = session.get(url, headers=self.headers, proxies=self.proxies)
         if resp.status_code == 200:
             objs = resp.json()
-            return objs[0], session
+            return objs[0]
         if resp.status_code == 404:
-            return None, session
+            return None
         err = 'Getting object failed (status code: {})'.format(
               resp.status_code)
         raise RuntimeError(err)
@@ -129,7 +128,7 @@ class ApiServer(object):
         if self.staging:
             objs = self.staging[typ]
             obj = [obj for obj in objs if obj.name == obj_name]
-            return obj[0] if obj else None, session
+            return obj[0] if obj else None
 
         url = self.api_url + '/{}s/'.format(typ.format(**parent))
         resp = session.get(url, headers=self.headers, proxies=self.proxies)
@@ -138,8 +137,8 @@ class ApiServer(object):
             try:
                 obj = next(o for o in objs if o['name'] == obj_name)
             except StopIteration:
-                return None, session
-            return obj, session
+                return None
+            return obj
         err = 'Getting object failed (status code: {})'.format(
               resp.status_code)
         raise RuntimeError(err)
@@ -150,7 +149,7 @@ class ApiServer(object):
             objs = self.staging[typ]
             obj = [o for o in objs if all(
                     o[k] == v for k, v in dict_.items() if k in o)]
-            return obj[0] if obj else None, session
+            return obj[0] if obj else None
 
         url = self.api_url + '/{}s/'.format(typ.format(**parent))
         resp = session.get(url, headers=self.headers, proxies=self.proxies, params=dict_)
@@ -160,8 +159,8 @@ class ApiServer(object):
                 obj = next(o for o in objs if all(
                     o[k] == v for k, v in dict_.items() if k in o))
             except StopIteration:
-                return None, session
-            return obj, session
+                return None
+            return obj
         err = 'Getting object failed (status code: {})'.format(
               resp.status_code)
         raise RuntimeError(err)
@@ -169,13 +168,13 @@ class ApiServer(object):
     @handle_connection_errors
     def get_objects(self, session, typ, parent):
         if self.staging:
-            return self.staging[typ], session
+            return self.staging[typ]
 
         url = self.api_url + '/{}s/'.format(typ.format(**parent))
         resp = session.get(url, headers=self.headers, proxies=self.proxies)
         if resp.status_code == 200:
             objs = resp.json()
-            return objs, session
+            return objs
         err = 'Getting object failed (status code: {})'.format(
               resp.status_code)
         raise RuntimeError(err)
@@ -184,7 +183,7 @@ class ApiServer(object):
         if 'id' in obj:
             # look up by id, raise an error upon lookup failure
             # or value mismatch for specified keys
-            got, session = self.get_object_by_id(session, typ, obj['id'], parent)
+            got = self.get_object_by_id(session, typ, obj['id'], parent)
             if not got:
                 err = 'Error: {} with id {:d} not in db'.format(typ, obj['id'])
                 raise RuntimeError(err)
@@ -198,7 +197,7 @@ class ApiServer(object):
                           .format(key, typ, obj['id'], obj[key], got[key])
                     raise RuntimeError(err)
 
-            return got, '=', session
+            return got, '='
 
         if not all(k in obj for k in key):
             err = 'Error: {} objects should specify ' \
@@ -208,7 +207,7 @@ class ApiServer(object):
 
         # look up by dict, and raise an error upon mismatch
         dict_ = {k: obj[k] for k in key}
-        got, session = self.get_object_by_dict(session, typ, dict_, parent)
+        got = self.get_object_by_dict(session, typ, dict_, parent)
         if got:
             # raise an error upon value mismatch for specified keys
             all_keys = set(obj.keys()).intersection(got.keys())
@@ -221,24 +220,24 @@ class ApiServer(object):
                           .format(key, typ, display_name, obj[key], got[key])
                     raise RuntimeError(err)
 
-            return got, '?', session
+            return got, '?'
 
         # no successfull lookup by id or by name, create a new object
-        got, session = self.create_object(session, typ, obj, parent)
-        return got, '+', session
+        got = self.create_object(session, typ, obj, parent)
+        return got, '+'
 
     def get_or_create(self, session, apiobj):
         self.log.debug('')
         if not self.staging:
             self.log.debug('-->' + json.dumps(apiobj.obj, indent=self.indent))
-        obj, code, session = self.get_or_create_object(
+        obj, code = self.get_or_create_object(
             session, apiobj.type_, apiobj.obj, apiobj.key, apiobj.parent.obj)
         if not obj:
             # If obj is None it means that creating the object into the database failed because of
             # a database integrity error ("duplicate key violation"). This may happen if a
             # concurrent transaction sneaked in and inserted the object. So we just give
             # get_or_create_object another chance.
-            obj, code, session = self.get_or_create_object(
+            obj, code = self.get_or_create_object(
                 session, apiobj.type_, apiobj.obj, apiobj.key, apiobj.parent.obj)
         self.log.debug('<--' + json.dumps(apiobj.obj, indent=self.indent))
         info = '{} ({}) {} [{}] {}'.format(
@@ -246,7 +245,7 @@ class ApiServer(object):
             ', '.join(str(apiobj.obj[k]) for k in apiobj.key if k in apiobj.obj),
             obj.get('uri', ''))
         self.log.info(info)
-        return obj, session
+        return obj
 
 
 class ApiObjs:
@@ -263,7 +262,7 @@ class ApiObjs:
     def get_or_create(self):
         with requests.Session() as session:
             for obj in self.objs:
-                _, session = obj.get_or_create(session, self.api)
+                obj.get_or_create(session, self.api)
 
     def lookup(self, obj):
         '''
@@ -295,25 +294,20 @@ class ApiObj:
 
     def get_or_create(self, session, api):
         if self.published:
-            return self, session
+            return self
 
         for key in self.objs:
-            obj, session = self.objs[key].get_or_create(session, api)
-            self.obj[key] = obj.obj['id']
+            self.obj[key] = self.objs[key].get_or_create(session, api).obj['id']
 
         for key in self.arrays:
-            ids = []
-            for obj in self.arrays[key]:
-                if obj is noobj:
-                    continue
-                obj, session = obj.get_or_create(session, api)
-                ids.append(obj.obj['id'])
+            ids = [obj.get_or_create(session, api).obj['id'] for obj in self.arrays[key]
+                   if obj is not noobj]
             self.obj[key] = sorted(ids)
 
-        obj, session = api.get_or_create(session, self)
+        obj = api.get_or_create(session, self)
         self.obj = obj
         self.published = True
-        return self, session
+        return self
 
     def update(self, **kwarg):
         obj = ApiObj.normalize_obj(kwarg)
@@ -394,7 +388,7 @@ class _NoObj(ApiObj):
         pass
 
     def get_or_create(self, session, api):
-        return self, session
+        return self
 
     def __bool__(self):
         return False
