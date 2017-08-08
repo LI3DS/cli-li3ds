@@ -72,6 +72,7 @@ setup(
             'import-ori = cli_li3ds.import_ori:ImportOri',
             'import-orimatis = cli_li3ds.import_orimatis:ImportOrimatis',
             'import-image = cli_li3ds.import_image:ImportImage',
+            'import-trajectory = cli_li3ds.import_trajectory:ImportTrajectory',
         ]
     }
 )
