@@ -88,7 +88,7 @@ class ImportImage(Command):
             'description': 'Created while importing {basename}',
         }
         referential = {
-            'name': 'camera',
+            'name': '{camera_num}',
         }
         platform = {
             'name': 'Stereopolis II',
