@@ -50,7 +50,7 @@ class ImportPc(Command):
     def handle_pointcloud(objs, args, data_path, driver):
 
         metadata = {
-            'table': data_path.stem,
+            'table': data_path.name.split('.')[0],
             'filepath': str(data_path),
         }
 
@@ -63,13 +63,22 @@ class ImportPc(Command):
             'filepath': '{filepath}',
         }
 
+        foreignpc_view = {
+            'view': '{table}_view'
+        }
+
         api.update_obj(args, metadata, foreignpc_server, 'foreignpc/server')
         api.update_obj(args, metadata, foreignpc_table, 'foreignpc/table')
+        api.update_obj(args, metadata, foreignpc_view, 'foreignpc/view')
 
         foreignpc_server = api.ForeignpcServer(foreignpc_server)
         foreignpc_table = create_foreignpc_table(foreignpc_table, foreignpc_server, driver)
+        view_name = '{schema}.{view}'.format(**foreignpc_view)
+        del foreignpc_view['schema']
+        del foreignpc_view['view']
+        foreignpc_view = api.ForeignpcView(foreignpc_table, foreignpc_view, view=view_name)
 
-        objs.add(foreignpc_table)
+        objs.add(foreignpc_view)
 
 
 def create_foreignpc_table(foreignpc_table, foreignpc_server, driver):
@@ -128,6 +137,9 @@ class ImportEpt(ImportPc):
             'foreignpc/server': {
                 'name': parsed_args.server_name,
             },
+            'foreignpc/view': {
+                'schema': parsed_args.database_schema,
+            },
         }
 
         fullpath = parsed_args.chdir / parsed_args.directory
@@ -171,6 +183,9 @@ class ImportTrajectory(ImportPc):
             },
             'foreignpc/server': {
                 'name': parsed_args.server_name,
+            },
+            'foreignpc/view': {
+                'schema': parsed_args.database_schema,
             },
         }
 
