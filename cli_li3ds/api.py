@@ -85,6 +85,7 @@ class ApiServer(object):
                 'platforms/{id}/config': [],
                 'foreignpc/server': [],
                 'foreignpc/table': [],
+                'foreignpc/view': [],
             }
 
     @handle_connection_errors
@@ -585,10 +586,20 @@ class ForeignpcTable(ApiObj):
         self.objs = {'server': server}
 
 
+class ForeignpcView(ApiObj):
+    type_ = 'foreignpc/view'
+    key = ('view',)
+
+    def __init__(self, table, obj=None, **kwarg):
+        keys = ('view', 'sbet')
+        super().__init__(keys, obj, **kwarg)
+        self.objs = {'table': table}
+
+
 def update_obj(args, metadata, obj, type_):
-    noname = ('datasource', 'foreignpc/table')
+    noname = ('datasource', 'foreignpc/table', 'foreignpc/view')
     nodesc = ('datasource', 'transfotree', 'project', 'session',
-              'foreignpc/server', 'foreignpc/table')
+              'foreignpc/server', 'foreignpc/table', 'foreignpc/view')
     if all(not type_.startswith(s) for s in noname):
         obj.setdefault('name', '{basename}')
     if all(not type_.startswith(s) for s in nodesc):
