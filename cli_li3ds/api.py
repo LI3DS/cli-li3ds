@@ -67,7 +67,7 @@ class ApiServer(object):
             self.headers = {
                 'Accept': 'application/json',
                 'X-API-KEY': args.api_key
-                }
+            }
             self.proxies = {'http': None} if args.no_proxy else None
         else:
             self.log.info('! Staging mode (use -u/-k options '
