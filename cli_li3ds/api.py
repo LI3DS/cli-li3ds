@@ -591,7 +591,7 @@ class ForeignpcView(ApiObj):
     key = ('view',)
 
     def __init__(self, table, obj=None, **kwarg):
-        keys = ('view', )
+        keys = ('view', 'sbet')
         super().__init__(keys, obj, **kwarg)
         self.objs = {'table': table}
 

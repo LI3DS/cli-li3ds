@@ -64,7 +64,8 @@ class ImportPc(Command):
         }
 
         foreignpc_view = {
-            'view': '{table}_view'
+            'view': '{table}_view',
+            'sbet': True if driver == 'fdwli3ds.Sbet' else False
         }
 
         api.update_obj(args, metadata, foreignpc_server, 'foreignpc/server')
