@@ -165,12 +165,17 @@ class ImportTrajectory(ImportPc):
             default='sbet',
             help='name of foreign server to create (optional, default is "sbet")')
         parser.add_argument(
-            '--srid', '-r',
+            '--srid-input', '-r',
             type=int, default=4326,
-            help='SRID of trajectory coordinates (optional, default is 4326)')
+            help='SRID of input trajectories (optional, default is 4326)')
+        parser.add_argument(
+            '--srid-output', '-t',
+            type=int, default=2154,
+            help='SRID of output trajectories (in the li3ds datastore) '
+                 '(optional, default is 2154)')
         parser.add_argument(
             'filename', nargs='+',
-            help='data file names, may be Unix-style patterns (e.g. *.sbet)')
+            help='trajectory file names, may be Unix-style patterns (e.g. *.sbet)')
         return parser
 
     def take_action(self, parsed_args):
@@ -180,13 +185,14 @@ class ImportTrajectory(ImportPc):
         args = {
             'foreignpc/table': {
                 'schema': parsed_args.database_schema,
-                'srid': parsed_args.srid,
+                'srid': parsed_args.srid_input,
             },
             'foreignpc/server': {
                 'name': parsed_args.server_name,
             },
             'foreignpc/view': {
                 'schema': parsed_args.database_schema,
+                'srid': parsed_args.srid_output,
             },
         }
 
