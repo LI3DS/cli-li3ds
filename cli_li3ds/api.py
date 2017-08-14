@@ -298,7 +298,8 @@ class ApiObj:
             return self
 
         for key in self.objs:
-            self.obj[key] = self.objs[key].get_or_create(session, api).obj['id']
+            if self.objs[key]:
+                self.obj[key] = self.objs[key].get_or_create(session, api).obj['id']
 
         for key in self.arrays:
             ids = [obj.get_or_create(session, api).obj['id'] for obj in self.arrays[key]
