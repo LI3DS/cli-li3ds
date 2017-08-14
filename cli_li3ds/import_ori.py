@@ -74,12 +74,12 @@ class ImportOri(Command):
                 'validity_end': parsed_args.validity_end,
             },
             'transfotree': {
-                    'name': parsed_args.intrinsic_transfotree,
-                    'owner': parsed_args.owner,
+                'name': parsed_args.intrinsic_transfotree,
+                'owner': parsed_args.owner,
             },
             'transfotree_all': {
-                    'name': parsed_args.transfotree,
-                    'owner': parsed_args.owner,
+                'name': parsed_args.transfotree,
+                'owner': parsed_args.owner,
             },
         }
         for filename in parsed_args.filename:
