@@ -63,7 +63,7 @@ class ImportPlatform(Command):
             name='identity',
             transfo_type=identity,
             parameters=[
-                {'mat4x3': [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]}
+                {'mat4x3': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]}
             ])
         transfo_lidar2ins = api.Transfo(
             ref_lidar,
@@ -71,7 +71,7 @@ class ImportPlatform(Command):
             name='identity',
             transfo_type=identity,
             parameters=[
-                {'mat4x3': [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]}
+                {'mat4x3': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]}
             ])
 
         transfotree_ins2cam = api.Transfotree([transfo_ins2camera_group], name='ins2cam')
