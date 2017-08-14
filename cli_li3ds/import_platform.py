@@ -46,7 +46,7 @@ class ImportPlatform(Command):
 
         ref_lidar = api.Referential(
             lidar,
-            {'name': 'ref lidar'})
+            {'name': 'ref lidar cartesian'})
 
         ref_ins = api.Referential(
             ins,
