@@ -458,6 +458,8 @@ class Transfo(ApiObj):
                     func_signature = list(parameters[0].keys())
                     if '_time' not in func_signature:
                         func_signature.append('_time')
+                else:
+                    func_signature = ['_time']
             transfo_type = TransfoType(
                 id=type_id,
                 name=type_name,
