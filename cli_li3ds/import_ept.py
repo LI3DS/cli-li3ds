@@ -110,8 +110,11 @@ class ImportEpt(Command):
             'type': 'lidar',
             'name': 'lidar',
         }
-        referential = {
+        referential_spherical = {
             'name': 'lidar spherical',
+        }
+        referential_cartesian = {
+            'name': 'lidar cartesian',
         }
         platform = {
             'name': 'Stereopolis II',
@@ -121,17 +124,24 @@ class ImportEpt(Command):
                 'name': '{session_time:%y%m%d}{section_name}',
         }
         datasource = {}
+        transfo = {
+            'name': 'lidar',
+        }
+        transfotree = {}
 
         api.update_obj(args, metadata, foreignpc_server, 'foreignpc/server')
         api.update_obj(args, metadata, foreignpc_table, 'foreignpc/table')
         api.update_obj(args, metadata, foreignpc_view, 'foreignpc/view')
 
         api.update_obj(args, metadata, sensor, 'sensor')
-        api.update_obj(args, metadata, referential, 'referential')
+        api.update_obj(args, metadata, referential_spherical, 'referential')
+        api.update_obj(args, metadata, referential_cartesian, 'referential')
         api.update_obj(args, metadata, platform, 'platform')
         api.update_obj(args, metadata, project, 'project')
         api.update_obj(args, metadata, session, 'session')
         api.update_obj(args, metadata, datasource, 'datasource')
+        api.update_obj(args, metadata, transfo, 'transfo')
+        api.update_obj(args, metadata, transfotree, 'transfotree')
 
         foreignpc_server = api.ForeignpcServer(foreignpc_server)
         foreignpc_table = create_foreignpc_table(foreignpc_table, foreignpc_server, cls.driver)
@@ -142,9 +152,17 @@ class ImportEpt(Command):
         project = api.Project(project)
         platform = api.Platform(platform)
         session = api.Session(project, platform, session)
-        referential = api.Referential(sensor, referential)
-        datasource = create_datasource(datasource, session, referential, name, 'pointcloud')
+        referential_spherical = api.Referential(sensor, referential_spherical)
+        referential_cartesian = api.Referential(sensor, referential_cartesian)
+
+        datasource = create_datasource(datasource, session, referential_spherical, name,
+                                       'pointcloud')
         objs.add(datasource)
+
+        transfo = api.Transfo(referential_cartesian, referential_spherical, transfo,
+                              type_name='cartesian_to_spherical', parameters=[])
+        transfotree = api.Transfotree([transfo], sensor, transfotree)
+        objs.add(transfotree)
 
     @staticmethod
     def parse_path(ept_path):
