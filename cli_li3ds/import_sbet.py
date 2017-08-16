@@ -186,9 +186,16 @@ class ImportSbet(Command):
         datasource = create_datasource(datasource, session, referential_ins, name, 'trajectory')
         objs.add(datasource)
 
-        transfo = cls.create_transfo(transfo, referential_world, referential_ins)
-        transfotree = api.Transfotree([transfo], sensor, transfotree)
-        objs.add(transfotree)
+        # create two transforms:
+        # - the forward transform: world_to_ins
+        # - the backward transform: ins_to_world
+        transfo_world_to_ins = cls.create_transfo(
+            dict(transfo), referential_ins, referential_world, True)
+        transfo_ins_to_world = cls.create_transfo(
+            dict(transfo), referential_ins, referential_world, False)
+        transfotree_world_to_ins = api.Transfotree([transfo_world_to_ins], sensor, transfotree)
+        transfotree_ins_to_world = api.Transfotree([transfo_ins_to_world], sensor, transfotree)
+        objs.add(transfotree_world_to_ins, transfotree_ins_to_world)
 
     @staticmethod
     def parse_path(trajectory_path):
@@ -204,13 +211,20 @@ class ImportSbet(Command):
         return name, session_time, section_name
 
     @staticmethod
-    def create_transfo(transfo, referential_world, referential_ins):
+    def create_transfo(transfo, referential_ins, referential_world, forward):
         transfo['parameters_column'] = '{schema}.{view}.points'.format(**transfo)
         del transfo['schema']
         del transfo['view']
-        print(transfo)
-        return api.Transfo(referential_world, referential_ins, transfo,
+        if forward:
+            # world -> ins
+            source, target = referential_world, referential_ins
+            quat = ['qw', '-qx', '-qy', '-qz']
+            vec3 = ['-x', '-y', '-z']
+        else:
+            # ins -> world
+            source, target = referential_ins, referential_world
+            quat = ['qw', 'qx', 'qy', 'qz']
+            vec3 = ['x', 'y', 'z']
+        return api.Transfo(source, target, transfo,
                            type_name='affine_quat',
-                           parameters=[{'quat': ['qw', 'qx', 'qy', 'qz'],
-                                        'vec3': ['x', 'y', 'z'],
-                                        '_time': 'time'}])
+                           parameters=[{'quat': quat, 'vec3': vec3, '_time': 'time'}])
