@@ -136,7 +136,7 @@ class ImportSbet(Command):
         }
         project = {}
         session = {
-                'name': '{session_time:%y%m%d}{section_name}',
+            'name': '{session_time:%y%m%d}{section_name}',
         }
         datasource = {}
 
