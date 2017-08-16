@@ -79,6 +79,15 @@ class ImportSbet(Command):
             'datasource': {
                 'schema': parsed_args.database_schema,
             },
+            'referential_ins': {
+                'srid': parsed_args.srid_input,
+            },
+            'referential_world': {
+                'srid': parsed_args.srid_output,
+            },
+            'transfo': {
+                'schema': parsed_args.database_schema,
+            },
         }
 
         for data_path in self.matching_filenames(parsed_args):
@@ -128,28 +137,39 @@ class ImportSbet(Command):
             'type': 'ins',
             'name': 'ins',
         }
-        referential = {
+        referential_ins = {
             'name': 'ins',
+        }
+        referential_world = {
+            'name': 'world',
         }
         platform = {
             'name': 'Stereopolis II',
         }
         project = {}
         session = {
-                'name': '{session_time:%y%m%d}{section_name}',
+            'name': '{session_time:%y%m%d}{section_name}',
         }
         datasource = {}
+        transfo = {
+            'name': '{table}_view',
+            'view': '{table}_view',
+        }
+        transfotree = {}
 
         api.update_obj(args, metadata, foreignpc_server, 'foreignpc/server')
         api.update_obj(args, metadata, foreignpc_table, 'foreignpc/table')
         api.update_obj(args, metadata, foreignpc_view, 'foreignpc/view')
 
         api.update_obj(args, metadata, sensor, 'sensor')
-        api.update_obj(args, metadata, referential, 'referential')
+        api.update_obj(args, metadata, referential_ins, 'referential_ins')
+        api.update_obj(args, metadata, referential_world, 'referential_world')
         api.update_obj(args, metadata, platform, 'platform')
         api.update_obj(args, metadata, project, 'project')
         api.update_obj(args, metadata, session, 'session')
         api.update_obj(args, metadata, datasource, 'datasource')
+        api.update_obj(args, metadata, transfo, 'transfo')
+        api.update_obj(args, metadata, transfotree, 'transfotree')
 
         foreignpc_server = api.ForeignpcServer(foreignpc_server)
         foreignpc_table = create_foreignpc_table(foreignpc_table, foreignpc_server, cls.driver)
@@ -160,9 +180,22 @@ class ImportSbet(Command):
         project = api.Project(project)
         platform = api.Platform(platform)
         session = api.Session(project, platform, session)
-        referential = api.Referential(sensor, referential)
-        datasource = create_datasource(datasource, session, referential, name, 'trajectory')
+        referential_ins = api.Referential(sensor, referential_ins)
+        referential_world = api.Referential(sensor, referential_world)
+
+        datasource = create_datasource(datasource, session, referential_ins, name, 'trajectory')
         objs.add(datasource)
+
+        # create two transforms:
+        # - the forward transform: world_to_ins
+        # - the backward transform: ins_to_world
+        transfo_world_to_ins = cls.create_transfo(
+            dict(transfo), referential_ins, referential_world, True)
+        transfo_ins_to_world = cls.create_transfo(
+            dict(transfo), referential_ins, referential_world, False)
+        transfotree_world_to_ins = api.Transfotree([transfo_world_to_ins], sensor, transfotree)
+        transfotree_ins_to_world = api.Transfotree([transfo_ins_to_world], sensor, transfotree)
+        objs.add(transfotree_world_to_ins, transfotree_ins_to_world)
 
     @staticmethod
     def parse_path(trajectory_path):
@@ -170,9 +203,28 @@ class ImportSbet(Command):
         name = trajectory_path.name.split('.')[0]
         parts = name.split('_')
         if len(parts) < 4:
-            err = 'Error: trajectory path structure is unknown'
+            err = 'Error: trajectory path structure is unknown'
             raise RuntimeError(err)
         session_time = datetime.datetime.strptime(parts[1], '%Y%m%d')
         session_time = pytz.UTC.localize(session_time)
         section_name = None
         return name, session_time, section_name
+
+    @staticmethod
+    def create_transfo(transfo, referential_ins, referential_world, forward):
+        transfo['parameters_column'] = '{schema}.{view}.points'.format(**transfo)
+        del transfo['schema']
+        del transfo['view']
+        if forward:
+            # world -> ins
+            source, target = referential_world, referential_ins
+            quat = ['qw', '-qx', '-qy', '-qz']
+            vec3 = ['-x', '-y', '-z']
+        else:
+            # ins -> world
+            source, target = referential_ins, referential_world
+            quat = ['qw', 'qx', 'qy', 'qz']
+            vec3 = ['x', 'y', 'z']
+        return api.Transfo(source, target, transfo,
+                           type_name='affine_quat',
+                           parameters=[{'quat': quat, 'vec3': vec3, '_time': 'time'}])

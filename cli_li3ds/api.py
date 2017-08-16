@@ -446,8 +446,8 @@ class Transfo(ApiObj):
             transfo_type.obj = transfo_type.obj.copy()
             transfo_type.obj['func_signature'] = func_signature
 
-        keys = ('id', 'name', 'description', 'parameters', 'tdate',
-                'validity_start', 'validity_end')
+        keys = ('id', 'name', 'description', 'parameters', 'parameters_column',
+                'tdate', 'validity_start', 'validity_end')
         if reverse:
             source, target = target, source
         super().__init__(keys, obj, **kwarg)
@@ -476,7 +476,8 @@ class Transfo(ApiObj):
     def get_or_create(self, session, api):
         if not self.published:
             parameters = self.obj.get('parameters')
-            if parameters:
+            parameters_column = self.obj.get('parameters_column')
+            if parameters and not parameters_column:
 
                 if len(parameters) > 1:
                     try:
@@ -485,9 +486,9 @@ class Transfo(ApiObj):
                         err = 'Error: _time missing in transfo parameters'
                         raise RuntimeError(err)
 
-                for i, parameter in enumerate(parameters):
+                for parameter in parameters:
                     if '_time' in parameter:
-                        parameters[i]['_time'] = isoformat(parameter['_time'])
+                        parameter['_time'] = isoformat(parameter['_time'])
 
                 validity_start = self.obj.get('validity_start')
                 if not validity_start and '_time' in parameters[0]:
