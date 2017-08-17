@@ -159,8 +159,8 @@ class ImportEpt(Command):
                                        'pointcloud')
         objs.add(datasource)
 
-        transfo = api.Transfo(referential_cartesian, referential_spherical, transfo,
-                              type_name='cartesian_to_spherical', parameters=[])
+        transfo = api.Transfo(referential_spherical, referential_cartesian, transfo,
+                              type_name='spherical_to_cartesian', parameters=[])
         transfotree = api.Transfotree([transfo], sensor, transfotree)
         objs.add(transfotree)
 
