@@ -54,7 +54,7 @@ class ImportPlatform(Command):
 
         affine_mat4x3 = api.TransfoType(
             name='affine_mat4x3',
-            func_signature=['mat4x3']
+            func_signature=['mat4x3', '_time']
         )
 
         transfo_ins2camera_group = api.Transfo(
