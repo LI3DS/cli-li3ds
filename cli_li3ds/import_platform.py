@@ -50,7 +50,7 @@ class ImportPlatform(Command):
 
         ref_ins = api.Referential(
             ins,
-            {'name': 'ins'})
+            {'name': 'ins', 'srid': 4326})
 
         identity = api.TransfoType(
             name='identity',
