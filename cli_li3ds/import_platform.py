@@ -52,8 +52,8 @@ class ImportPlatform(Command):
             ins,
             {'name': 'ins', 'srid': 4326})
 
-        identity = api.TransfoType(
-            name='identity',
+        affine_mat4x3 = api.TransfoType(
+            name='affine_mat4x3',
             func_signature=['mat4x3']
         )
 
@@ -61,7 +61,7 @@ class ImportPlatform(Command):
             ref_ins,
             ref_camera_group,
             name='identity',
-            transfo_type=identity,
+            transfo_type=affine_mat4x3,
             parameters=[
                 {'mat4x3': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]}
             ])
@@ -69,7 +69,7 @@ class ImportPlatform(Command):
             ref_lidar,
             ref_ins,
             name='identity',
-            transfo_type=identity,
+            transfo_type=affine_mat4x3,
             parameters=[
                 {'mat4x3': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]}
             ])
