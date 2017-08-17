@@ -176,7 +176,7 @@ class ImportSbet(Command):
         foreignpc_view = create_foreignpc_view(foreignpc_view, foreignpc_table)
         objs.add(foreignpc_view)
 
-        sensor = api.Sensor(sensor, specifications={})
+        sensor = api.Sensor(sensor)
         project = api.Project(project)
         platform = api.Platform(platform)
         session = api.Session(project, platform, session)
