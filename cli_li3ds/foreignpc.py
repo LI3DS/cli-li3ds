@@ -6,16 +6,13 @@ def create_foreignpc_table(foreignpc_table, foreignpc_server, driver):
     del foreignpc_table['schema']
     del foreignpc_table['table']
 
+    options = {'patch_size': 100, 'time_offset': foreignpc_table['time_offset']}
+    del foreignpc_table['time_offset']
+
     if driver == 'fdwli3ds.Sbet':
-        options = {
-            'sources': foreignpc_table['filepath'],
-            'patch_size': 100,
-        }
+        options['sources'] = foreignpc_table['filepath']
     elif driver == 'fdwli3ds.EchoPulse':
-        options = {
-            'directory': foreignpc_table['filepath'],
-            'patch_size': 100,
-        }
+        options['directory'] = foreignpc_table['filepath']
 
     del foreignpc_table['filepath']
 
