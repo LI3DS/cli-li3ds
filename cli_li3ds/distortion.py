@@ -90,7 +90,7 @@ def poly_deg_data_reader(node, i):
         'C': states[1:3],
         'p': params,
     }
-    return type_, parameters
+    return type_, parameters, ['S', 'C', 'p']
 
 
 @_register('eModeleEbner')
@@ -102,7 +102,7 @@ def ebner_data_reader(node, i=0):
     :param node: the ``ModUnif`` XML node.
     """
     states, params = _read_parameters(node, 1, 12)
-    return 'poly_ebner', {'B': states[0], 'p': params}
+    return 'poly_ebner', {'B': states[0], 'p': params}, ['B', 'p']
 
 
 @_register('eModeleDCBrown')
@@ -114,7 +114,7 @@ def d_c_brown_data_reader(node, i=0):
     :param node: the ``ModUnif`` XML node.
     """
     states, params = _read_parameters(node, 1, 14)
-    return 'poly_brown', {'F': states[0], 'p': params}
+    return 'poly_brown', {'F': states[0], 'p': params}, ['F', 'p']
 
 
 @_register(
@@ -137,7 +137,7 @@ def fisheye_10_5_5_data_reader(node, i):
         'P': params[12:14],
         'l': params[22:24],
         }
-    return types[i], parameters
+    return types[i], parameters, ['F', 'C', 'R', 'P', 'l']
 
 
 @_register('ModRad')
@@ -150,7 +150,7 @@ def rad_data_reader(node, i=0):
     R = xmlutil.children_float(node, 'CoeffDist')
     C = xmlutil.child_floats_split(node, 'CDist')
     type_ = 'poly_radial_{}'.format(1+2*len(R))
-    return type_, {'C': C, 'R': R}
+    return type_, {'C': C, 'R': R}, ['C', 'R']
 
 
 @_register('ModPhgrStd')
@@ -160,8 +160,9 @@ def phgr_std_data_reader(node, i=0):
 
     :param node: the ``ModPhgrStd`` XML node.
     """
-    type_, parameters = rad_data_reader(
+    type_, parameters, func_signature = rad_data_reader(
         xmlutil.child(node, 'RadialePart'))
     parameters['P'] = xmlutil.child_floats(node, '[P1,P2]', 0)
     parameters['b'] = xmlutil.child_floats(node, '[b1,b2]', 0)
-    return type_+'_Pb', parameters
+    func_signature.extend(['P', 'b'])
+    return type_+'_Pb', parameters, func_signature

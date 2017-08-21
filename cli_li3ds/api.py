@@ -428,12 +428,6 @@ class TransfoType(ApiObj):
         keys = ('id', 'name', 'description', 'func_signature')
         super().__init__(keys, obj, **kwarg)
 
-    def update(self, **kwarg):
-        func_signature = kwarg.get('func_signature')
-        if func_signature:
-            kwarg['func_signature'] = sorted(func_signature)
-        return super().update(**kwarg)
-
 
 class Transfo(ApiObj):
     type_ = 'transfo'
@@ -453,14 +447,9 @@ class Transfo(ApiObj):
         super().__init__(keys, obj, **kwarg)
 
         if transfo_type is noobj:
-            if not func_signature:
-                parameters = self.obj.get('parameters')
-                if parameters:
-                    func_signature = list(parameters[0].keys())
-                    if '_time' not in func_signature:
-                        func_signature.append('_time')
-                else:
-                    func_signature = ['_time']
+            assert(func_signature is not None)
+            if '_time' not in func_signature:
+                func_signature.append('_time')
             transfo_type = TransfoType(
                 id=type_id,
                 name=type_name,

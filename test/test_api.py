@@ -23,7 +23,8 @@ def transfo(scope='module'):
     sensor = api.Sensor(name='sensor')
     source = api.Referential(name='source', sensor=sensor)
     target = api.Referential(name='target', sensor=sensor)
-    return api.Transfo(name='transfo', source=source, target=target)
+    return api.Transfo(name='transfo', source=source, target=target,
+                       type_name='transfo_type', func_signature=[], parameters=[])
 
 
 def test_apiobj(apiobj):
@@ -57,14 +58,16 @@ def test_eq_complex():
     sen1 = api.Sensor(name='sen')
     src1 = api.Referential(name='src', sensor=sen1)
     tgt1 = api.Referential(name='dst', sensor=sen1)
-    tra1 = api.Transfo(name='tra', source=src1, target=tgt1)
+    tra1 = api.Transfo(name='tra', source=src1, target=tgt1,
+                       type_name='transfo_type', func_signature=[], parameters=[])
     ttr1 = api.Transfotree(transfos=[tra1], name='ttr')
 
     # create transfo tree 2
     sen2 = api.Sensor(name='sen')
     src2 = api.Referential(name='src', sensor=sen2)
     tgt2 = api.Referential(name='dst', sensor=sen2)
-    tra2 = api.Transfo(name='tra', source=src2, target=tgt2)
+    tra2 = api.Transfo(name='tra', source=src2, target=tgt2,
+                       type_name='transfo_type', func_signature=[], parameters=[])
     ttr2 = api.Transfotree(transfos=[tra2], name='ttr')
 
     assert ttr1 == ttr2

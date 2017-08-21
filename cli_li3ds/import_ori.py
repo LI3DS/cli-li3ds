@@ -135,6 +135,7 @@ def transfo_pose(source, target, transfo, node):
         source, target, transfo,
         name='{name}#Externe'.format(**transfo),
         type_name='affine_mat4x3',
+        func_signature=['mat4x3'],
         parameters=[{'mat4x3': matrix}],
     )
 
@@ -147,5 +148,6 @@ def transfo_orint(source, target, transfo, node):
         source, target, transfo,
         name='{name}#OrIntImaM2C'.format(**transfo),
         type_name='affine_mat3x2',
+        func_signature=['mat3x2'],
         parameters=[{'mat3x2': [u[0], v[0], p[0], u[1], v[1], p[1]]}],
     )
