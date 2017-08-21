@@ -106,7 +106,7 @@ def ebner_data_reader(node, i=0):
 
 
 @_register('eModeleDCBrown')
-def d_c_brown_fisheye_10_5_5_data_reader(node, i=0):
+def d_c_brown_data_reader(node, i=0):
     """
     Get the distortion parameters
     from the ModUnif/eModeleDCBrown XML node.
