@@ -53,6 +53,10 @@ class ImportSbet(Command):
             help='SRID of output trajectories (in the li3ds datastore) '
                  '(optional, default is 2154)')
         parser.add_argument(
+            '--time-offset', '-x',
+            type=float, default=0,
+            help='time offset in seconds (optional, default is 0)')
+        parser.add_argument(
             'filename', nargs='+',
             help='sbet file names, may be Unix-style patterns (e.g. *.sbet)')
         return parser
@@ -65,6 +69,7 @@ class ImportSbet(Command):
             'foreignpc/table': {
                 'schema': parsed_args.database_schema,
                 'srid': parsed_args.srid_input,
+                'time_offset': parsed_args.time_offset,
             },
             'foreignpc/server': {
                 'name': parsed_args.server_name,

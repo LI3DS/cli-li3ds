@@ -47,6 +47,10 @@ class ImportEpt(Command):
             type=int, default=0,
             help='SRID of lidar coordinates (optional, default is 0)')
         parser.add_argument(
+            '--time-offset', '-x',
+            type=float, default=0,
+            help='time offset in seconds (optional, default is 0)')
+        parser.add_argument(
             'directory',
             type=pathlib.Path,
             help='directory containing ept files')
@@ -60,6 +64,7 @@ class ImportEpt(Command):
             'foreignpc/table': {
                 'schema': parsed_args.database_schema,
                 'srid': parsed_args.srid,
+                'time_offset': parsed_args.time_offset,
             },
             'foreignpc/server': {
                 'name': parsed_args.server_name,
