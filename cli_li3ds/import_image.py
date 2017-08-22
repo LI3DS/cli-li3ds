@@ -165,8 +165,7 @@ class ImportImage(Command):
             # image_obj['date'] is the number of seconds since January 5, 1980 (GPS time
             # reference) minus 1e9. So we add 1e9 and 315964782 to get the number of
             # seconds since January 1, 1970.
-            dt = datetime.datetime.fromtimestamp(image_obj['date'] + 1e9 + 315964782)
-            dt = pytz.UTC.localize(dt)
+            dt = datetime.datetime.fromtimestamp(image_obj['date'] + 1e9 + 315964782, tz=pytz.UTC)
             cls.image_date_cache[image_obj['id']] = dt
         assert(image_id_no_cam in cls.image_date_cache)
         return cls.image_date_cache[image_id_no_cam]
