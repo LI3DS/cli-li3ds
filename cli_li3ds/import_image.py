@@ -1,6 +1,7 @@
 import logging
 import datetime
 import pathlib
+import json
 import pytz
 import re
 
@@ -14,6 +15,8 @@ class ImportImage(Command):
     """
 
     log = logging.getLogger(__name__)
+
+    image_date_cache = {}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -29,6 +32,10 @@ class ImportImage(Command):
         parser.add_argument(
             '--image-dir', '-f',
             help='base directory to search for images (optional, default is ".")')
+        parser.add_argument(
+            '--json-dir', '-j',
+            type=pathlib.Path,
+            help='directory including the json files with date/time information')
         parser.add_argument(
             '--filename-pattern', '-p',
             help='file name pattern')
@@ -77,24 +84,27 @@ class ImportImage(Command):
                         continue
                 self.log.info('Importing {}'.format(image_path.relative_to(image_dir)))
                 self.handle_image(objs, args, image_dir, image_path, base_uri,
-                                  parsed_args.image_size)
+                                  parsed_args.image_size, parsed_args.json_dir)
 
         objs.get_or_create()
         self.log.info('Success!\n')
 
-    @staticmethod
-    def handle_image(objs, args, image_dir, image_path, base_uri, image_size):
+    @classmethod
+    def handle_image(cls, objs, args, image_dir, image_path, base_uri, image_size, json_dir):
 
         project_name, session_time, section_name, image_num, camera_num = \
             parse_image_path(image_path)
+
+        image_time = cls.lookup_image_datetime(
+            json_dir, session_time, section_name, image_path.stem)
 
         metadata = {
             'basename': image_path.name,
             'camera_num': camera_num,
             'project_name': project_name,
             'section_name': section_name,
-            'session_time': session_time,
-            'session_time_iso': api.isoformat(session_time),
+            'session_time': parse_date(session_time),
+            'image_time_iso': api.isoformat(image_time),
         }
 
         sensor = {
@@ -115,8 +125,8 @@ class ImportImage(Command):
             'name': '{session_time:%y%m%d}/{section_name}',
         }
         datasource = {
-            'capture_start': '{session_time_iso}',
-            'capture_end': '{session_time_iso}',
+            'capture_start': '{image_time_iso}',
+            'capture_end': '{image_time_iso}',
         }
         api.update_obj(args, metadata, sensor, 'sensor')
         api.update_obj(args, metadata, referential, 'referential')
@@ -136,6 +146,31 @@ class ImportImage(Command):
 
         objs.add(datasource)
 
+    @classmethod
+    def lookup_image_datetime(cls, json_dir, session_time, section_name, image_id):
+        if not json_dir:
+            return None
+        image_id_no_cam = '_'.join(image_id.split('_')[0:-1])
+        if image_id_no_cam in cls.image_date_cache:
+            return cls.image_date_cache[image_id_no_cam]
+        json_file = json_dir / '{}-{}.json'.format(session_time, section_name)
+        if not json_file.is_file():
+            err = '{} is not a file'.format(str(json_file))
+            raise RuntimeError(err)
+        cls.image_date_cache.clear()
+        cls.log.debug('Reading {}'.format(str(json_file)))
+        with json_file.open() as f:
+            image_objs = json.load(f)
+        for image_obj in image_objs:
+            # image_obj['date'] is the number of seconds since January 5, 1980 (GPS time
+            # reference) minus 1e9. So we add 1e9 and 315964782 to get the number of
+            # seconds since January 1, 1970.
+            dt = datetime.datetime.fromtimestamp(image_obj['date'] + 1e9 + 315964782)
+            dt = pytz.UTC.localize(dt)
+            cls.image_date_cache[image_obj['id']] = dt
+        assert(image_id_no_cam in cls.image_date_cache)
+        return cls.image_date_cache[image_id_no_cam]
+
 
 def parse_image_path(image_path):
     parts = image_path.stem.split('_')
@@ -143,7 +178,7 @@ def parse_image_path(image_path):
         err = 'Error:image filename structure is unknown'
         raise RuntimeError(err)
     project_name = parts[0]
-    session_time = parse_date(parts[1])
+    session_time = parts[1]
     section_name = parts[2]
     image_num = parts[3]
     camera_num = parts[4]
