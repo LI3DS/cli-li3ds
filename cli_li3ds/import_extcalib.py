@@ -27,10 +27,13 @@ class ImportExtCalib(Command):
         parser.add_argument(
             '--sensor-id', '-i',
             type=int,
-            help='the camera sensor id (optional)')
+            help='the camera group sensor id (optional)')
         parser.add_argument(
             '--sensor', '-s',
-            help='the camera sensor name (optional)')
+            help='the camera group sensor name (optional)')
+        parser.add_argument(
+            '--sensor-prefix', default='',
+            help='camera sensor name prefix (optional, default is no prefix)')
         parser.add_argument(
             '--transfotree',
             help='the transfotree name (optional)')
@@ -61,9 +64,12 @@ class ImportExtCalib(Command):
         objs = api.ApiObjs(server)
 
         args = {
-            'sensor': {
+            'sensor_group': {
                 'name': parsed_args.sensor,
                 'id': parsed_args.sensor_id,
+            },
+            'sensor': {
+                'prefix': parsed_args.sensor_prefix,
             },
             'transfo': {
                 'name': parsed_args.transfo,
@@ -99,7 +105,7 @@ class ImportExtCalib(Command):
         referential_base = {'name': 'base'}
         transfotree = {}
 
-        api.update_obj(args, metadata, sensor_group, 'sensor')
+        api.update_obj(args, metadata, sensor_group, 'sensor_group')
         api.update_obj(args, metadata, referential_base, 'referential')
         api.update_obj(args, metadata, transfotree, 'transfotree')
 
@@ -114,9 +120,12 @@ class ImportExtCalib(Command):
             referential = {'name': '{IdGrp}'}
             transfo = {'name': '{IdGrp}'}
 
-            api.update_obj(None, metadata, sensor, 'sensor')
-            api.update_obj(None, metadata, referential, 'referential')
-            api.update_obj(None, metadata, transfo, 'transfo')
+            api.update_obj(args, metadata, sensor, 'sensor')
+            api.update_obj(args, metadata, referential, 'referential')
+            api.update_obj(args, metadata, transfo, 'transfo')
+
+            sensor['name'] = sensor['prefix'] + sensor['name']
+            del sensor['prefix']
 
             sensor = api.Sensor(sensor)
             referential = api.Referential(sensor, referential)
@@ -140,7 +149,7 @@ class ImportExtCalib(Command):
         referential_base = {'name': 'base'}
         transfotree = {}
 
-        api.update_obj(args, metadata, sensor_group, 'sensor')
+        api.update_obj(args, metadata, sensor_group, 'sensor_group')
         api.update_obj(args, metadata, referential_base, 'referential')
         api.update_obj(args, metadata, transfotree, 'transfotree')
 
@@ -155,9 +164,12 @@ class ImportExtCalib(Command):
             referential = {'name': '{IdGrp}'}
             transfo = {'name': '{IdGrp}'}
 
-            api.update_obj(None, metadata, sensor, 'sensor')
-            api.update_obj(None, metadata, referential, 'referential')
-            api.update_obj(None, metadata, transfo, 'transfo')
+            api.update_obj(args, metadata, sensor, 'sensor')
+            api.update_obj(args, metadata, referential, 'referential')
+            api.update_obj(args, metadata, transfo, 'transfo')
+
+            sensor['name'] = sensor['prefix'] + sensor['name']
+            del sensor['prefix']
 
             sensor = api.Sensor(sensor)
             referential = api.Referential(sensor, referential)

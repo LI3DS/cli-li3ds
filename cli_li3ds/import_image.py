@@ -36,6 +36,9 @@ class ImportImage(Command):
             '--base-uri', '-b',
             help='base directory in image URIs (optional, default is None)')
         parser.add_argument(
+            '--sensor-prefix', default='',
+            help='camera sensor name prefix (optional, default is no prefix)')
+        parser.add_argument(
             'filename', nargs='+',
             help='image file names, may be Unix-style patterns (e.g. *.jpg)')
         return parser
@@ -54,6 +57,12 @@ class ImportImage(Command):
         else:
             image_dir = pathlib.Path('.')
 
+        args = {
+            'sensor': {
+                'prefix': parsed_args.sensor_prefix,
+            },
+        }
+
         for filename in parsed_args.filename:
             for image_path in image_dir.rglob(filename):
                 if parsed_args.filename_pattern:
@@ -61,14 +70,14 @@ class ImportImage(Command):
                     if not match:
                         continue
                 self.log.info('Importing {}'.format(image_path.relative_to(image_dir)))
-                self.handle_image(objs, image_dir, image_path, base_uri,
+                self.handle_image(objs, args, image_dir, image_path, base_uri,
                                   parsed_args.image_size)
 
         objs.get_or_create()
         self.log.info('Success!\n')
 
     @staticmethod
-    def handle_image(objs, image_dir, image_path, base_uri, image_size):
+    def handle_image(objs, args, image_dir, image_path, base_uri, image_size):
 
         project_name, session_time, section_name, image_num, camera_num = \
             parse_image_path(image_path)
@@ -103,12 +112,12 @@ class ImportImage(Command):
             'capture_start': '{session_time_iso}',
             'capture_end': '{session_time_iso}',
         }
-        api.update_obj(None, metadata, sensor, 'sensor')
-        api.update_obj(None, metadata, referential, 'referential')
-        api.update_obj(None, metadata, platform, 'platform')
-        api.update_obj(None, metadata, project, 'project')
-        api.update_obj(None, metadata, session, 'session')
-        api.update_obj(None, metadata, datasource, 'datasource')
+        api.update_obj(args, metadata, sensor, 'sensor')
+        api.update_obj(args, metadata, referential, 'referential')
+        api.update_obj(args, metadata, platform, 'platform')
+        api.update_obj(args, metadata, project, 'project')
+        api.update_obj(args, metadata, session, 'session')
+        api.update_obj(args, metadata, datasource, 'datasource')
 
         sensor = sensor_camera(sensor, image_size)
         project = api.Project(project)
@@ -141,6 +150,8 @@ def parse_date(date_string):
 
 
 def sensor_camera(sensor, image_size):
+    sensor['name'] = sensor['prefix'] + sensor['name']
+    del sensor['prefix']
     specifications = {}
     if image_size:
         specifications['image_size'] = image_size
