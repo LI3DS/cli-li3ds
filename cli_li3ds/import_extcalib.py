@@ -211,7 +211,7 @@ def transfo_grp_json(source, target, transfo, node):
     p = node['position']
     r = node['rotation']
     for i in range(0, 3):
-        matrix.extend(r[i:i+3])
+        matrix.extend(r[i*3:(i+1)*3])
         matrix.append(p[i])
     return transfo_grp(source, target, transfo, matrix)
 
