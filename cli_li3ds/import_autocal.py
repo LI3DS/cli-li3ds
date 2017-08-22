@@ -33,6 +33,9 @@ class ImportAutocal(Command):
             '--sensor-prefix', default='',
             help='camera sensor name prefix (optional, default is no prefix)')
         parser.add_argument(
+            '--referential-prefix', default='',
+            help='referential name prefix (optional, default is no prefix)')
+        parser.add_argument(
             '--transfotree',
             help='the transfotree name (optional)')
         parser.add_argument(
@@ -70,6 +73,9 @@ class ImportAutocal(Command):
         filename_pattern = parsed_args.filename_pattern
 
         args = {
+            'referential': {
+                'prefix': parsed_args.referential_prefix,
+            },
             'sensor': {
                 'name': parsed_args.sensor,
                 'prefix': parsed_args.sensor_prefix,
@@ -138,6 +144,7 @@ class ImportAutocal(Command):
         camera_sensor = sensor_camera(camera_sensor, node)
 
         target = referential_raw(camera_sensor, referential)
+
         transfos = []
 
         orintglob = node.find('OrIntGlob')
@@ -177,8 +184,12 @@ def referential_distorted(sensor, referential):
                   '+XY: raster pixel coordinates, ' \
                   '+Z: inverse depth (measured along the optical axis). ' \
                   '{description}'
+    referential = dict(referential)
+    if 'prefix' in referential:
+        name = '{prefix}distorted'.format(**referential)
+        del referential['prefix']
     return api.Referential(
-        sensor, referential, name='distorted',
+        sensor, referential, name=name,
         description=description.format(**referential)
     )
 
@@ -188,8 +199,13 @@ def referential_raw(sensor, referential):
                   '+XY: raster pixel coordinates, ' \
                   '+Z: inverse depth (measured along the optical axis). ' \
                   '{description}'
+    referential = dict(referential)
+    name = 'raw'
+    if 'prefix' in referential:
+        name = '{prefix}{name}'.format(prefix=referential['prefix'], name=name)
+        del referential['prefix']
     return api.Referential(
-        sensor, referential, name='raw',
+        sensor, referential, name=name,
         description=description.format(**referential),
     )
 
@@ -199,8 +215,13 @@ def referential_undistorted(sensor, referential, i):
                   '+XY: raster pixel coordinates, ' \
                   '+Z: inverse depth (measured along the optical axis). ' \
                   '{description}'
+    referential = dict(referential)
+    name = 'undistorted[{}]'.format(i)
+    if 'prefix' in referential:
+        name = '{prefix}{name}'.format(prefix=referential['prefix'], name=name)
+        del referential['prefix']
     return api.Referential(
-        sensor, referential, name='undistorted[{}]'.format(i),
+        sensor, referential, name=name,
         description=description.format(**referential),
     )
 
@@ -211,6 +232,10 @@ def referential_camera(sensor, referential):
                   '+Y: bottom of the camera, ' \
                   '+Z: optical axis (in front of the camera), ' \
                   '{description}'
+    referential = dict(referential)
+    if 'prefix' in referential:
+        referential['name'] = '{prefix}{name}'.format(**referential)
+        del referential['prefix']
     return api.Referential(
         sensor, referential,
         description=description.format(**referential),

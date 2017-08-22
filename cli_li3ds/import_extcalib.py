@@ -35,6 +35,9 @@ class ImportExtCalib(Command):
             '--sensor-prefix', default='',
             help='camera sensor name prefix (optional, default is no prefix)')
         parser.add_argument(
+            '--referential-prefix', default='',
+            help='referential name prefix (optional, default is no prefix)')
+        parser.add_argument(
             '--transfotree',
             help='the transfotree name (optional)')
         parser.add_argument(
@@ -64,6 +67,9 @@ class ImportExtCalib(Command):
         objs = api.ApiObjs(server)
 
         args = {
+            'referential': {
+                'prefix': parsed_args.referential_prefix,
+            },
             'sensor_group': {
                 'name': parsed_args.sensor,
                 'id': parsed_args.sensor_id,
@@ -110,6 +116,9 @@ class ImportExtCalib(Command):
         api.update_obj(args, metadata, transfotree, 'transfotree')
 
         sensor_group = api.Sensor(sensor_group)
+
+        referential_base['name'] = referential_base['prefix'] + referential_base['name']
+        del referential_base['prefix']
         referential_base = api.Referential(sensor_group, referential_base)
 
         transfos = []
@@ -126,6 +135,9 @@ class ImportExtCalib(Command):
 
             sensor['name'] = sensor['prefix'] + sensor['name']
             del sensor['prefix']
+
+            referential['name'] = referential['prefix'] + referential['name']
+            del referential['prefix']
 
             sensor = api.Sensor(sensor)
             referential = api.Referential(sensor, referential)
@@ -154,6 +166,9 @@ class ImportExtCalib(Command):
         api.update_obj(args, metadata, transfotree, 'transfotree')
 
         sensor_group = api.Sensor(sensor_group)
+
+        referential_base['name'] = referential_base['prefix'] + referential_base['name']
+        del referential_base['prefix']
         referential_base = api.Referential(sensor_group, referential_base)
 
         transfos = []
@@ -170,6 +185,9 @@ class ImportExtCalib(Command):
 
             sensor['name'] = sensor['prefix'] + sensor['name']
             del sensor['prefix']
+
+            referential['name'] = referential['prefix'] + referential['name']
+            del referential['prefix']
 
             sensor = api.Sensor(sensor)
             referential = api.Referential(sensor, referential)

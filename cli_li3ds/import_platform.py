@@ -42,7 +42,7 @@ class ImportPlatform(Command):
 
         ref_camera_group = api.Referential(
             camera_group,
-            {'name': 'base'})
+            {'name': 'camera-base'})
 
         ref_lidar = api.Referential(
             lidar,
