@@ -121,7 +121,8 @@ class ImportExtCalib(Command):
         del referential_base['prefix']
         referential_base = api.Referential(sensor_group, referential_base)
 
-        transfos = []
+        transfos1 = []
+        transfos2 = []
         for camera in cameras:
             metadata['IdGrp'] = camera['id']
 
@@ -141,11 +142,15 @@ class ImportExtCalib(Command):
 
             sensor = api.Sensor(sensor)
             referential = api.Referential(sensor, referential)
-            transfo = transfo_grp_json(referential_base, referential, transfo, camera)
-            transfos.append(transfo)
+            transfo1 = transfo_grp_json(referential_base, referential, transfo, camera, False)
+            transfo2 = transfo_grp_json(referential_base, referential, transfo, camera, True)
 
-        transfotree = api.Transfotree(transfos, sensor_group, transfotree)
-        objs.add(transfotree)
+            transfos1.append(transfo1)
+            transfos2.append(transfo2)
+
+        transfotree1 = api.Transfotree(transfos1, sensor_group, transfotree)
+        transfotree2 = api.Transfotree(transfos2, sensor_group, transfotree)
+        objs.add(transfotree1, transfotree2)
 
     @staticmethod
     def handle_xml_file(objs, args, filename):
@@ -171,7 +176,8 @@ class ImportExtCalib(Command):
         del referential_base['prefix']
         referential_base = api.Referential(sensor_group, referential_base)
 
-        transfos = []
+        transfos1 = []
+        transfos2 = []
         for node in nodes:
             metadata['IdGrp'] = xmlutil.findtext(node, 'IdGrp')
 
@@ -191,14 +197,29 @@ class ImportExtCalib(Command):
 
             sensor = api.Sensor(sensor)
             referential = api.Referential(sensor, referential)
-            transfo = transfo_grp_xml(referential_base, referential, transfo, node)
-            transfos.append(transfo)
+            transfo1 = transfo_grp_xml(referential_base, referential, transfo, node, False)
+            transfo2 = transfo_grp_xml(referential_base, referential, transfo, node, True)
 
-        transfotree = api.Transfotree(transfos, sensor_group, transfotree)
-        objs.add(transfotree)
+            transfos1.append(transfo1)
+            transfos2.append(transfo2)
+
+        transfotree1 = api.Transfotree(transfos1, sensor_group, transfotree)
+        transfotree2 = api.Transfotree(transfos2, sensor_group, transfotree)
+        objs.add(transfotree1, transfotree2)
 
 
-def transfo_grp(source, target, transfo, matrix):
+def transfo_grp(source, target, transfo, matrix, inverse):
+    if inverse:
+        # transpose the rotation part
+        matrix[1], matrix[4] = matrix[4], matrix[1]
+        matrix[2], matrix[8] = matrix[8], matrix[2]
+        matrix[6], matrix[9] = matrix[9], matrix[6]
+        # multiply the translation part by -transposed rotation
+        x, y, z = -matrix[3], -matrix[7], -matrix[11]
+        matrix[3] = x * matrix[0] + y * matrix[1] + z * matrix[2]
+        matrix[7] = x * matrix[4] + y * matrix[5] + z * matrix[6]
+        matrix[11] = x * matrix[8] + y * matrix[9] + z * matrix[10]
+        source, target = target, source
     return api.Transfo(
         source, target, transfo,
         type_name='affine_mat4x3',
@@ -206,20 +227,20 @@ def transfo_grp(source, target, transfo, matrix):
     )
 
 
-def transfo_grp_json(source, target, transfo, node):
+def transfo_grp_json(source, target, transfo, node, inverse):
     matrix = []
     p = node['position']
     r = node['rotation']
     for i in range(0, 3):
         matrix.extend(r[i*3:(i+1)*3])
         matrix.append(p[i])
-    return transfo_grp(source, target, transfo, matrix)
+    return transfo_grp(source, target, transfo, matrix, inverse)
 
 
-def transfo_grp_xml(source, target, transfo, node):
+def transfo_grp_xml(source, target, transfo, node, inverse):
     matrix = []
     p = xmlutil.child_floats_split(node, 'Vecteur')
     for i, l in enumerate(('Rot/L1', 'Rot/L2', 'Rot/L3')):
         matrix.extend(xmlutil.child_floats_split(node, l))
         matrix.append(p[i])
-    return transfo_grp(source, target, transfo, matrix)
+    return transfo_grp(source, target, transfo, matrix, inverse)
