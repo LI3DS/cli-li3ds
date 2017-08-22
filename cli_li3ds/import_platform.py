@@ -73,6 +73,15 @@ class ImportPlatform(Command):
                 {'mat4x3': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]}
             ])
 
+        transfo_camera_group2ins = api.Transfo(
+            ref_camera_group,
+            ref_ins,
+            name='cam2ins',
+            transfo_type=affine_mat4x3,
+            parameters=[
+                {'mat4x3': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]}
+            ])
+
         affine_quat = api.TransfoType(
             name='affine_quat',
             func_signature=['quat', 'vec3', '_time']
@@ -87,6 +96,7 @@ class ImportPlatform(Command):
         )
 
         transfotree_ins2cam = api.Transfotree([transfo_ins2camera_group], name='ins2cam')
+        transfotree_cam2ins = api.Transfotree([transfo_camera_group2ins], name='cam2ins')
         transfotree_lidar2ins = api.Transfotree([transfo_lidar2ins], name='lidar2ins')
 
         pconfig = api.Config(
@@ -94,7 +104,7 @@ class ImportPlatform(Command):
             [transfotree_ins2cam, transfotree_lidar2ins],
             name='test_platform')
 
-        objs.add(pconfig)
+        objs.add(transfotree_cam2ins, pconfig)
         objs.get_or_create()
         self.log.info('Success!\n')
 
