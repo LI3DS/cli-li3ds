@@ -30,6 +30,9 @@ class ImportAutocal(Command):
             '--sensor', '-s',
             help='the camera sensor name (optional)')
         parser.add_argument(
+            '--sensor-prefix', default='',
+            help='camera sensor name prefix (optional, default is no prefix)')
+        parser.add_argument(
             '--transfotree',
             help='the transfotree name (optional)')
         parser.add_argument(
@@ -69,6 +72,7 @@ class ImportAutocal(Command):
         args = {
             'sensor': {
                 'name': parsed_args.sensor,
+                'prefix': parsed_args.sensor_prefix,
                 'id': parsed_args.sensor_id,
             },
             'transfo': {
@@ -161,6 +165,9 @@ class ImportAutocal(Command):
 
 
 def sensor_camera(sensor, node):
+    if 'prefix' in sensor:
+        sensor['name'] = sensor['prefix'] + sensor['name']
+        del sensor['prefix']
     specs = {'image_size': xmlutil.child_floats_split(node, 'SzIm')}
     return api.Sensor(sensor, type='camera', specifications=specs)
 
