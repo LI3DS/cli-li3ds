@@ -39,6 +39,9 @@ class ImportImage(Command):
             '--sensor-prefix', default='',
             help='camera sensor name prefix (optional, default is no prefix)')
         parser.add_argument(
+            '--referential-prefix', default='',
+            help='referential name prefix (optional, default is no prefix)')
+        parser.add_argument(
             'filename', nargs='+',
             help='image file names, may be Unix-style patterns (e.g. *.jpg)')
         return parser
@@ -58,6 +61,9 @@ class ImportImage(Command):
             image_dir = pathlib.Path('.')
 
         args = {
+            'referential': {
+                'prefix': parsed_args.referential_prefix,
+            },
             'sensor': {
                 'prefix': parsed_args.sensor_prefix,
             },
@@ -162,6 +168,8 @@ def referential_camera(referential, sensor):
     description = 'origin: top left corner of top left pixel, ' \
                   '+XY: raster pixel coordinates, ' \
                   '+Z: inverse depth (measured along the optical axis).'
+    referential['name'] = '{prefix}{name}'.format(**referential)
+    del referential['prefix']
     return api.Referential(
             sensor, referential, description=description)
 
