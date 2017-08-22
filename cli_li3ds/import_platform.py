@@ -1,4 +1,6 @@
+import math
 import logging
+import configparser
 
 from cliff.command import Command
 
@@ -18,6 +20,9 @@ class ImportPlatform(Command):
         self.log.debug(prog_name)
         parser = super().get_parser(prog_name)
         api.add_arguments(parser)
+        parser.add_argument(
+            'filename', nargs=1,
+            help='The TerraMatch corrections file')
         return parser
 
     def take_action(self, parsed_args):
@@ -25,6 +30,8 @@ class ImportPlatform(Command):
         objs = api.ApiObjs(server)
 
         self.log.info('Importing platform configuration sample')
+
+        lidar_transform_params = self.read_lidar_rigid_transform_params(parsed_args.filename)
 
         lidar = api.Sensor({
             'name': 'lidar',
@@ -60,19 +67,24 @@ class ImportPlatform(Command):
         transfo_ins2camera_group = api.Transfo(
             ref_ins,
             ref_camera_group,
-            name='identity',
+            name='ins2cam',
             transfo_type=affine_mat4x3,
             parameters=[
                 {'mat4x3': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]}
             ])
+
+        affine_quat = api.TransfoType(
+            name='affine_quat',
+            func_signature=['quat', 'vec3', '_time']
+        )
+
         transfo_lidar2ins = api.Transfo(
             ref_lidar,
             ref_ins,
-            name='identity',
-            transfo_type=affine_mat4x3,
-            parameters=[
-                {'mat4x3': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]}
-            ])
+            name='lidar2ins',
+            transfo_type=affine_quat,
+            parameters=[lidar_transform_params]
+        )
 
         transfotree_ins2cam = api.Transfotree([transfo_ins2camera_group], name='ins2cam')
         transfotree_lidar2ins = api.Transfotree([transfo_lidar2ins], name='lidar2ins')
@@ -85,3 +97,32 @@ class ImportPlatform(Command):
         objs.add(pconfig)
         objs.get_or_create()
         self.log.info('Success!\n')
+
+    @staticmethod
+    def read_lidar_rigid_transform_params(filename):
+        config = configparser.ConfigParser()
+        config.read(filename)
+
+        section = 'TerraMatch corrections v2'
+
+        easting = config.getfloat(section, 'EastingShift')
+        northing = config.getfloat(section, 'NorthingShift')
+        elevation = config.getfloat(section, 'ElevationShift')
+
+        heading = math.radians(config.getfloat(section, 'HeadingShift') * 0.5)
+        roll = math.radians(config.getfloat(section, 'RollShift') * 0.5)
+        pitch = math.radians(config.getfloat(section, 'PitchShift') * 0.5)
+
+        ch = math.cos(heading)
+        sh = math.sin(heading)
+        cr = math.cos(roll)
+        sr = math.sin(roll)
+        cp = math.cos(pitch)
+        sp = math.sin(pitch)
+
+        qw = - sh * sr * sp + ch * cr * cp
+        qx = - sh * cr * sp + ch * sr * cp
+        qy = + sh * sr * cp + ch * cr * sp
+        qz = + ch * sr * sp + sh * cr * cp
+
+        return {'vec3': [easting, northing, elevation], 'quat': [qw, qx, qy, qz]}
