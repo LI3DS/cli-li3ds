@@ -37,7 +37,7 @@ class ImportPlatform(Command):
             'description': 'Imported from cli-li3ds'})
 
         camera_group = api.Sensor({
-            'name': 'cameraMetaData.json',
+            'name': 'camera group',
             'type': 'group'})
 
         ref_camera_group = api.Referential(
