@@ -141,12 +141,17 @@ class ImportExtCalib(Command):
             del referential['prefix']
 
             sensor = api.Sensor(sensor)
-            referential = api.Referential(sensor, referential)
-            transfo1 = transfo_grp_json(referential_base, referential, transfo, camera, False)
-            transfo2 = transfo_grp_json(referential_base, referential, transfo, camera, True)
+            referential_cam = referential_camera(sensor, referential)
+            basetocam = transfo_grp_json(referential_base, referential_cam, transfo, camera, False)
+            camtobase = transfo_grp_json(referential_base, referential_cam, transfo, camera, True)
 
-            transfos1.append(transfo1)
-            transfos2.append(transfo2)
+            referential_img = referential_image(sensor, referential)
+            camtoimg = transfo_proj_json(referential_cam, referential_img, transfo, camera)
+
+            transfos1.append(basetocam)
+            transfos1.append(camtoimg)
+
+            transfos2.append(camtobase)
 
         transfotree1 = api.Transfotree(transfos1, transfotree)
         transfotree2 = api.Transfotree(transfos2, transfotree)
@@ -196,7 +201,8 @@ class ImportExtCalib(Command):
             del referential['prefix']
 
             sensor = api.Sensor(sensor)
-            referential = api.Referential(sensor, referential)
+
+            referential = referential_camera(sensor, referential)
             transfo1 = transfo_grp_xml(referential_base, referential, transfo, node, False)
             transfo2 = transfo_grp_xml(referential_base, referential, transfo, node, True)
 
@@ -206,6 +212,24 @@ class ImportExtCalib(Command):
         transfotree1 = api.Transfotree(transfos1, transfotree)
         transfotree2 = api.Transfotree(transfos2, transfotree)
         objs.add(transfotree1, transfotree2)
+
+
+def referential_camera(sensor, referential):
+    description = 'origin: camera position, ' \
+                  '+X: right of the camera, ' \
+                  '+Y: bottom of the camera, ' \
+                  '+Z: optical axis (in front of the camera), ' \
+                  '{description}'.format(**referential)
+    return api.Referential(sensor, referential, description=description)
+
+
+def referential_image(sensor, referential):
+    description = 'origin: top left corner of top left pixel, ' \
+                  '+XY: raster pixel coordinates, ' \
+                  '+Z: inverse depth (measured along the optical axis). ' \
+                  '{description}'.format(**referential)
+    name = '{name} image'.format(**referential)
+    return api.Referential(sensor, referential, name=name, description=description)
 
 
 def transfo_grp(source, target, transfo, matrix, inverse):
@@ -236,6 +260,23 @@ def transfo_grp_json(source, target, transfo, node, inverse):
         matrix.extend(r[i*3:(i+1)*3])
         matrix.append(p[i])
     return transfo_grp(source, target, transfo, matrix, inverse)
+
+
+def transfo_proj_json(source, target, transfo, node):
+    p = node['projection']
+    if p[0] != p[4]:
+        err = 'Unexpected values found in cameraMetaData file: ' \
+              'focal x and y are different'
+        raise RuntimeError(err)
+    return api.Transfo(
+        source, target, transfo,
+        type_name='projective_pinhole',
+        func_signature=['focal', 'ppa'],
+        parameters=[{
+            'focal': p[0],
+            'ppa': [p[2], p[5]]
+        }]
+    )
 
 
 def transfo_grp_xml(source, target, transfo, node, inverse):
