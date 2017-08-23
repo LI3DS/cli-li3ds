@@ -223,6 +223,7 @@ def transfo_grp(source, target, transfo, matrix, inverse):
     return api.Transfo(
         source, target, transfo,
         type_name='affine_mat4x3',
+        func_signature=['mat4x3'],
         parameters=[{'mat4x3': matrix}],
     )
 

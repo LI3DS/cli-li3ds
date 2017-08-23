@@ -232,4 +232,5 @@ class ImportSbet(Command):
             vec3 = ['x', 'y', 'z']
         return api.Transfo(source, target, transfo,
                            type_name='affine_quat',
+                           func_signature=['quat', 'vec3', '_time'],
                            parameters=[{'quat': quat, 'vec3': vec3, '_time': 'time'}])

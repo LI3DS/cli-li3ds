@@ -363,6 +363,7 @@ def transfo_pinh(source, target, transfo, root):
         source, target, transfo,
         name='{name}#projection'.format(**transfo),
         type_name='projective_pinhole',
+        func_signature=['focal', 'ppa'],
         parameters=[{
             'focal': xmlutil.child_float(node, 'ppa/focale'),
             'ppa': xmlutil.child_floats(node, 'ppa/[c,l]'),
@@ -376,6 +377,7 @@ def transfo_sphe(source, target, transfo, root):
         source, target, transfo,
         name='{name}#projection'.format(**transfo),
         type_name='cartesian_to_spherical',
+        func_signature=['ppa', 'lambda', 'phi'],
         parameters=[{
             'ppa': xmlutil.child_floats(node, 'ppa/[c,l]'),
             'lambda': xmlutil.child_floats(node, 'frame/lambda_[min,max]'),
@@ -390,6 +392,7 @@ def transfo_dist(source, target, transfo, root):
         source, target, transfo,
         name='{name}#distortion'.format(**transfo),
         type_name='poly_radial_7',
+        func_signature=['C', 'R'],
         parameters=[{
             'C': xmlutil.child_floats(node, 'distortion/pps/[c,l]'),
             'R': xmlutil.child_floats(node, 'distortion/[r3,r5,r7]'),
@@ -409,6 +412,7 @@ def transfo_quat(source, target, transfo, acquisition, root):
         source, target, transfo,
         name='{name}#quaternion'.format(**transfo),
         type_name='affine_quat',
+        func_signature=['quat', 'vec3', '_time'],
         parameters=[{'quat': quat, 'vec3': p, '_time': acquisition}],
         reverse=reverse,
     )
@@ -437,6 +441,7 @@ def transfo_matr(source, target, transfo, acquisition, root):
         source, target, transfo,
         name='{name}#mat3d'.format(**transfo),
         type_name='affine_mat4x3',
+        func_signature=['mat4x3', '_time'],
         parameters=[{'mat4x3': matrix, '_time': acquisition}],
         reverse=reverse,
     )

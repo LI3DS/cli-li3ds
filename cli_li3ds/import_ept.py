@@ -165,7 +165,8 @@ class ImportEpt(Command):
         objs.add(datasource)
 
         transfo = api.Transfo(referential_spherical, referential_cartesian, transfo,
-                              type_name='spherical_to_cartesian', parameters=[])
+                              type_name='spherical_to_cartesian', parameters=[],
+                              func_signature=[])
         transfotree = api.Transfotree([transfo], sensor, transfotree)
         objs.add(transfotree)
 
