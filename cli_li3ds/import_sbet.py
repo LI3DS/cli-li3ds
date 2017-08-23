@@ -198,8 +198,8 @@ class ImportSbet(Command):
             dict(transfo), referential_ins, referential_world, True)
         transfo_ins_to_world = cls.create_transfo(
             dict(transfo), referential_ins, referential_world, False)
-        transfotree_world_to_ins = api.Transfotree([transfo_world_to_ins], sensor, transfotree)
-        transfotree_ins_to_world = api.Transfotree([transfo_ins_to_world], sensor, transfotree)
+        transfotree_world_to_ins = api.Transfotree([transfo_world_to_ins], transfotree)
+        transfotree_ins_to_world = api.Transfotree([transfo_ins_to_world], transfotree)
         objs.add(transfotree_world_to_ins, transfotree_ins_to_world)
 
     @staticmethod

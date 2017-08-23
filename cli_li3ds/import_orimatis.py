@@ -241,7 +241,7 @@ class ImportOrimatis(Command):
             sphe = transfo_sphe(ref_e, ref_i, transfo_int, root)
             transfos = [quat or matr, sphe]
 
-        transfotree = api.Transfotree(transfos, sensor, transfotree)
+        transfotree = api.Transfotree(transfos, transfotree)
         project = api.Project(project)
         platform = api.Platform(platform)
         session = api.Session(project, platform, session)

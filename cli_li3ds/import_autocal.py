@@ -165,7 +165,7 @@ class ImportAutocal(Command):
         pinhole = transfo_pinhole(source, target, transfo, node)
         transfos.append(pinhole)
 
-        transfotree = api.Transfotree(transfos, camera_sensor, transfotree)
+        transfotree = api.Transfotree(transfos, transfotree)
         objs.add(transfotree)
 
         return camera_sensor, transfotree, source, target
