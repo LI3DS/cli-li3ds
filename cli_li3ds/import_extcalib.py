@@ -148,8 +148,8 @@ class ImportExtCalib(Command):
             transfos1.append(transfo1)
             transfos2.append(transfo2)
 
-        transfotree1 = api.Transfotree(transfos1, sensor_group, transfotree)
-        transfotree2 = api.Transfotree(transfos2, sensor_group, transfotree)
+        transfotree1 = api.Transfotree(transfos1, transfotree)
+        transfotree2 = api.Transfotree(transfos2, transfotree)
         objs.add(transfotree1, transfotree2)
 
     @staticmethod
@@ -203,8 +203,8 @@ class ImportExtCalib(Command):
             transfos1.append(transfo1)
             transfos2.append(transfo2)
 
-        transfotree1 = api.Transfotree(transfos1, sensor_group, transfotree)
-        transfotree2 = api.Transfotree(transfos2, sensor_group, transfotree)
+        transfotree1 = api.Transfotree(transfos1, transfotree)
+        transfotree2 = api.Transfotree(transfos2, transfotree)
         objs.add(transfotree1, transfotree2)
 
 

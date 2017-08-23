@@ -120,7 +120,7 @@ class ImportOri(Command):
 
         transfos.extend(transfotree.arrays['transfos'])
 
-        objs.add(api.Transfotree(transfos, sensor, transfotree_all))
+        objs.add(api.Transfotree(transfos, transfotree_all))
 
 
 def transfo_pose(source, target, transfo, node):
