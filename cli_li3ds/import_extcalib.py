@@ -140,7 +140,7 @@ class ImportExtCalib(Command):
             referential['name'] = referential['prefix'] + referential['name']
             del referential['prefix']
 
-            sensor = api.Sensor(sensor)
+            sensor = sensor_camera(sensor, camera['size'])
             referential_cam = referential_camera(sensor, referential)
             basetocam = transfo_grp_json(referential_base, referential_cam, transfo, camera, False)
             camtobase = transfo_grp_json(referential_base, referential_cam, transfo, camera, True)
@@ -200,7 +200,7 @@ class ImportExtCalib(Command):
             referential['name'] = referential['prefix'] + referential['name']
             del referential['prefix']
 
-            sensor = api.Sensor(sensor)
+            sensor = sensor_camera(sensor)
 
             referential = referential_camera(sensor, referential)
             transfo1 = transfo_grp_xml(referential_base, referential, transfo, node, False)
@@ -212,6 +212,13 @@ class ImportExtCalib(Command):
         transfotree1 = api.Transfotree(transfos1, transfotree)
         transfotree2 = api.Transfotree(transfos2, transfotree)
         objs.add(transfotree1, transfotree2)
+
+
+def sensor_camera(sensor, image_size=None):
+    specifications = None
+    if image_size:
+        specifications = {'image_size': image_size}
+    return api.Sensor(sensor, specifications=specifications)
 
 
 def referential_camera(sensor, referential):
