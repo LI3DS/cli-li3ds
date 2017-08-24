@@ -6,8 +6,10 @@ def create_foreignpc_table(foreignpc_table, foreignpc_server, driver):
     del foreignpc_table['schema']
     del foreignpc_table['table']
 
-    options = {'patch_size': 100, 'time_offset': foreignpc_table['time_offset']}
-    del foreignpc_table['time_offset']
+    options = {'patch_size': 100}
+    if 'time_offset' in foreignpc_table:
+        options['time_offset'] = foreignpc_table['time_offset']
+        del foreignpc_table['time_offset']
 
     if driver == 'fdwli3ds.Sbet':
         options['sources'] = foreignpc_table['filepath']
