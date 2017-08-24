@@ -101,6 +101,7 @@ class ImportEpt(Command):
         foreignpc_table = {
             'table': '{table}',
             'filepath': '{filepath}',
+            'time_offset': cls.time_offset_from_session_time(session_time),
         }
         foreignpc_view = {
             'view': '{table}_view',
@@ -177,3 +178,12 @@ class ImportEpt(Command):
         session_time = pytz.UTC.localize(session_time)
         section_name = parts[2]
         return name, session_time, section_name
+
+    @staticmethod
+    def time_offset_from_session_time(session_time):
+        # the time reference for time values in the EPT file is the beginning of the
+        # session day. So the time offset is the session day converted to the POSIX
+        # timestamp
+        dt = datetime.datetime(session_time.year, session_time.month, session_time.day,
+                               tzinfo=pytz.UTC)
+        return dt.timestamp()
