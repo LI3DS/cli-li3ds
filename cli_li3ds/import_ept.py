@@ -47,10 +47,6 @@ class ImportEpt(Command):
             type=int, default=0,
             help='SRID of lidar coordinates (optional, default is 0)')
         parser.add_argument(
-            '--time-offset', '-x',
-            type=float, default=0,
-            help='time offset in seconds (optional, default is 0)')
-        parser.add_argument(
             'directory',
             type=pathlib.Path,
             help='directory containing ept files')
@@ -64,7 +60,6 @@ class ImportEpt(Command):
             'foreignpc/table': {
                 'schema': parsed_args.database_schema,
                 'srid': parsed_args.srid,
-                'time_offset': parsed_args.time_offset,
             },
             'foreignpc/server': {
                 'name': parsed_args.server_name,
@@ -106,6 +101,7 @@ class ImportEpt(Command):
         foreignpc_table = {
             'table': '{table}',
             'filepath': '{filepath}',
+            'time_offset': cls.time_offset_from_session_time(session_time),
         }
         foreignpc_view = {
             'view': '{table}_view',
@@ -182,3 +178,12 @@ class ImportEpt(Command):
         session_time = pytz.UTC.localize(session_time)
         section_name = parts[2]
         return name, session_time, section_name
+
+    @staticmethod
+    def time_offset_from_session_time(session_time):
+        # the time reference for time values in the EPT file is the beginning of the
+        # session day. So the time offset is the session day converted to the POSIX
+        # timestamp
+        dt = datetime.datetime(session_time.year, session_time.month, session_time.day,
+                               tzinfo=pytz.UTC)
+        return dt.timestamp()
