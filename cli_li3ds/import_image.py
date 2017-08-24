@@ -139,7 +139,7 @@ class ImportImage(Command):
         project = api.Project(project)
         platform = api.Platform(platform)
         session = api.Session(project, platform, session)
-        referential = referential_camera(referential, sensor)
+        referential = referential_image(referential, sensor)
         datasource = datasource_image(
                 datasource, session, referential,
                 image_dir, image_path, base_uri, image_size)
@@ -198,14 +198,14 @@ def sensor_camera(sensor, image_size):
     return api.Sensor(sensor, specifications=specifications)
 
 
-def referential_camera(referential, sensor):
+def referential_image(referential, sensor):
     description = 'origin: top left corner of top left pixel, ' \
                   '+XY: raster pixel coordinates, ' \
-                  '+Z: inverse depth (measured along the optical axis).'
-    referential['name'] = '{prefix}{name}'.format(**referential)
+                  '+Z: inverse depth (measured along the optical axis). ' \
+                  '{description}'.format(**referential)
+    name = '{prefix}{name} image'.format(**referential)
     del referential['prefix']
-    return api.Referential(
-            sensor, referential, description=description)
+    return api.Referential(sensor, referential, name=name, description=description)
 
 
 def datasource_image(datasource, session, referential, image_dir, image_path, base_uri, image_size):
