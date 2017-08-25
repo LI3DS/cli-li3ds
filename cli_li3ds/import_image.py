@@ -122,7 +122,7 @@ class ImportImage(Command):
             'name': '{project_name}',
         }
         session = {
-            'name': '{session_time:%y%m%d}/{section_name}',
+            'name': '{session_time:%y%m%d%H%M}/{section_name}',
         }
         datasource = {
             'capture_start': '{image_time_iso}',

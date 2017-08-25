@@ -122,7 +122,7 @@ class ImportEpt(Command):
         }
         project = {}
         session = {
-                'name': '{session_time:%y%m%d}{section_name}',
+            'name': '{session_time:%y%m%d%H%M}{section_name}',
         }
         datasource = {}
         transfo = {
