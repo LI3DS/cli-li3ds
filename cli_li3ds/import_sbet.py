@@ -93,8 +93,8 @@ class ImportSbet(Command):
         for data_path in self.matching_filenames(parsed_args):
             self.log.info('Importing {}'.format(
                 data_path.relative_to(parsed_args.chdir)))
-            name, session_time, section_name = self.parse_path(data_path)
-            self.handle_sbet(objs, args, data_path, name, session_time, section_name)
+            name, session_time = self.parse_path(data_path)
+            self.handle_sbet(objs, args, data_path, name, session_time)
 
         objs.get_or_create()
         self.log.info('Success!\n')
@@ -111,14 +111,13 @@ class ImportSbet(Command):
                     yield data_path
 
     @classmethod
-    def handle_sbet(cls, objs, args, data_path, name, session_time, section_name):
+    def handle_sbet(cls, objs, args, data_path, name, session_time):
 
         metadata = {
             'basename': data_path.name,
             'table': name,
             'filepath': str(data_path),
             'session_time': session_time,
-            'section_name': '/' + section_name if section_name else ''
         }
 
         foreignpc_server = {
@@ -148,7 +147,7 @@ class ImportSbet(Command):
         }
         project = {}
         session = {
-            'name': '{session_time:%y%m%d}{section_name}',
+            'name': '{session_time:%y%m%d%H%M}',
         }
         datasource = {}
         transfo = {
@@ -205,10 +204,12 @@ class ImportSbet(Command):
         if len(parts) < 4:
             err = 'Error: trajectory path structure is unknown'
             raise RuntimeError(err)
-        session_time = datetime.datetime.strptime(parts[1], '%Y%m%d')
+        session_date = datetime.datetime.strptime(parts[1], '%Y%m%d')
+        session_time = datetime.datetime.strptime(parts[2], '%H%M%S')
+        session_time = session_time.replace(year=session_date.year, month=session_date.month,
+                                            day=session_date.day)
         session_time = pytz.UTC.localize(session_time)
-        section_name = None
-        return name, session_time, section_name
+        return name, session_time
 
     @staticmethod
     def create_transfo(transfo, referential_ins, referential_world, forward):
