@@ -219,14 +219,14 @@ class ImportSbet(Command):
         if forward:
             # world -> ins
             source, target = referential_world, referential_ins
-            quat = ['qw', '-qx', '-qy', '-qz']
-            vec3 = ['-x', '-y', '-z']
+            type_name = 'affine_quat_inverse'
         else:
             # ins -> world
             source, target = referential_ins, referential_world
-            quat = ['qw', 'qx', 'qy', 'qz']
-            vec3 = ['x', 'y', 'z']
+            type_name = 'affine_quat'
+        quat = ['qw', 'qx', 'qy', 'qz']
+        vec3 = ['x', 'y', 'z']
         return api.Transfo(source, target, transfo,
-                           type_name='affine_quat',
+                           type_name=type_name,
                            func_signature=['quat', 'vec3', '_time'],
                            parameters=[{'quat': quat, 'vec3': vec3, '_time': 'time'}])
