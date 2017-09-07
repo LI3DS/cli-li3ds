@@ -70,7 +70,7 @@ class ImportPlatform(Command):
             name='ins2cam',
             transfo_type=affine_mat4x3,
             parameters=[
-                {'mat4x3': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]}
+                {'mat4x3': [-1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0]}
             ])
 
         transfo_camera_group2ins = api.Transfo(
@@ -79,7 +79,7 @@ class ImportPlatform(Command):
             name='cam2ins',
             transfo_type=affine_mat4x3,
             parameters=[
-                {'mat4x3': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]}
+                {'mat4x3': [-1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0]}
             ])
 
         affine_quat = api.TransfoType(
