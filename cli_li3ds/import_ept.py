@@ -29,8 +29,8 @@ class ImportEpt(Command):
         parser.add_argument(
             '--database-schema', '-s',
             help='name of database schema into which foreign tables are created '
-                 '(optional, default is "public")',
-            default='public')
+                 '(optional, default is "li3ds")',
+            default='li3ds')
         parser.add_argument(
             '--chdir', '-f',
             type=pathlib.Path, default='.',
