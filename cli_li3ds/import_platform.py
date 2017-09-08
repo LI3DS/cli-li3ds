@@ -119,7 +119,7 @@ class ImportPlatform(Command):
         northing = config.getfloat(section, 'NorthingShift')
         elevation = config.getfloat(section, 'ElevationShift')
 
-        heading = math.radians(config.getfloat(section, 'HeadingShift') * 0.5)
+        heading = - math.radians(config.getfloat(section, 'HeadingShift') * 0.5)
         roll = math.radians(config.getfloat(section, 'RollShift') * 0.5)
         pitch = math.radians(config.getfloat(section, 'PitchShift') * 0.5)
 
