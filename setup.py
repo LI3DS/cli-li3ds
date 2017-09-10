@@ -10,6 +10,7 @@ requirements = (
     'cliff==2.6.0',
     'requests==2.13.0',
     'pytz==2017.2',
+    'pyquaternion==0.9.0',
 )
 
 dev_requirements = (
