@@ -2,6 +2,8 @@ import math
 import logging
 import configparser
 
+from pyquaternion import Quaternion
+
 from cliff.command import Command
 
 from . import api
@@ -134,5 +136,12 @@ class ImportPlatform(Command):
         qx = - sh * cr * sp + ch * sr * cp
         qy = + sh * sr * cp + ch * cr * sp
         qz = + ch * sr * sp + sh * cr * cp
+        q_boresight = Quaternion(qw, qx, qy, qz)
 
-        return {'vec3': [easting, northing, elevation], 'quat': [qw, qx, qy, qz]}
+        # rotate by π/2 around y and π around z (lidar to ins)
+        q_z = Quaternion(axis=(0, 0, 1), radians=math.pi)
+        q_y = Quaternion(axis=(0, 1, 0), radians=math.pi/2)
+
+        q = q_z * q_y * q_boresight
+
+        return {'vec3': [easting, northing, elevation], 'quat': [q[0], q[1], q[2], q[3]]}
