@@ -40,3 +40,5 @@ li3ds import-ori      $li3dsARGS $@ data/Orientation-1.xml
 li3ds import-ori      $li3dsARGS $@ data/OriFrancesco.xml
 li3ds import-ori      $li3dsARGS $@ data/TestOri-1.xml
 li3ds import-ori      $li3dsARGS $@ data/TestOri-2.xml
+
+li3ds import-json     $li3dsARGS $@ data/2017_17FA7506_C_6.json --uri 'file://{uri}.JP2'
