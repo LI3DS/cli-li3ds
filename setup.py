@@ -11,6 +11,7 @@ requirements = (
     'requests==2.13.0',
     'pytz==2017.2',
     'pyquaternion==0.9.0',
+    'python-dateutil==2.6.0'
 )
 
 dev_requirements = (
@@ -76,6 +77,7 @@ setup(
             'import-sbet= cli_li3ds.import_sbet:ImportSbet',
             'import-ept = cli_li3ds.import_ept:ImportEpt',
             'import-platform = cli_li3ds.import_platform:ImportPlatform',
+            'import-json = cli_li3ds.import_json:ImportJson',
         ]
     }
 )

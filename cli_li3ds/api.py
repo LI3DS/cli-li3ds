@@ -1,4 +1,5 @@
 import requests
+import dateutil.parser
 import json
 import getpass
 import time
@@ -244,7 +245,7 @@ class ApiServer(object):
         info = '{} ({}) {} [{}] {}'.format(
             code, apiobj.obj.get('id', '?'), apiobj.type_.format(**apiobj.parent.obj),
             ', '.join(str(apiobj.obj[k]) for k in apiobj.key if k in apiobj.obj),
-            obj.get('uri', ''))
+            obj.get('uri', '') if obj else '')
         self.log.info(info)
         return obj
 
@@ -404,7 +405,7 @@ class Sensor(ApiObj):
     key = ('name',)
 
     def __init__(self, obj=None, **kwarg):
-        keys = ('id', 'name', 'type', 'description',
+        keys = ('id', 'name', 'type', 'description', 'model',
                 'serial_number', 'specifications')
         super().__init__(keys, obj, **kwarg)
         self.obj.setdefault('serial_number', '')
@@ -506,7 +507,7 @@ class Project(ApiObj):
     key = ('name',)
 
     def __init__(self, obj=None, **kwarg):
-        keys = ('id', 'name', 'extent', 'timezone')
+        keys = ('id', 'name', 'extent', 'timezone', 'specifications')
         super().__init__(keys, obj, **kwarg)
         self.obj.setdefault('timezone', 'Europe/Paris')
 
@@ -525,7 +526,7 @@ class Session(ApiObj):
     key = ('name', 'project', 'platform')
 
     def __init__(self, project, platform, obj=None, **kwarg):
-        keys = ('id', 'name', 'start_time', 'end_time')
+        keys = ('id', 'name', 'start_time', 'end_time', 'specifications')
         super().__init__(keys, obj, **kwarg)
         self.objs = {'project': project, 'platform': platform}
 
@@ -535,7 +536,8 @@ class Datasource(ApiObj):
     key = ('uri', 'session', 'referential')
 
     def __init__(self, session, referential, obj=None, **kwarg):
-        keys = ('id', 'type', 'uri', 'bounds', 'capture_start', 'capture_end')
+        keys = ('id', 'type', 'uri', 'bounds', 'capture_start', 'capture_end',
+                'specifications', 'extent')
         super().__init__(keys, obj, **kwarg)
         self.objs = {'session': session, 'referential': referential}
 
@@ -616,4 +618,6 @@ def update_obj(args, metadata, obj, type_):
 
 
 def isoformat(date):
+    if isinstance(date, str):
+        date = dateutil.parser.parse(date)
     return date.isoformat() if date else None
