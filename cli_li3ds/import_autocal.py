@@ -143,7 +143,7 @@ class ImportAutocal(Command):
 
         camera_sensor = sensor_camera(camera_sensor, node)
 
-        target = referential_raw(camera_sensor, referential)
+        raw_ref = target = referential_raw(camera_sensor, referential)
 
         transfos = []
 
@@ -168,7 +168,7 @@ class ImportAutocal(Command):
         transfotree = api.Transfotree(transfos, transfotree)
         objs.add(transfotree)
 
-        return camera_sensor, transfotree, source, target
+        return camera_sensor, transfotree, source, raw_ref
 
 
 def sensor_camera(sensor, node):
