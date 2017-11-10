@@ -241,6 +241,10 @@ class ApiServer(object):
             # get_or_create_object another chance.
             obj, code = self.get_or_create_object(
                 session, apiobj.type_, apiobj.obj, apiobj.key, apiobj.parent.obj)
+        if not obj:
+            self.log.info('request failed twice, aborting')
+            return apiobj.obj
+        apiobj.obj = obj
         self.log.debug('<--' + json.dumps(apiobj.obj, indent=self.indent))
         info = '{} ({}) {} [{}] {}'.format(
             code, apiobj.obj.get('id', '?'), apiobj.type_.format(**apiobj.parent.obj),
