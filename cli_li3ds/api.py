@@ -121,6 +121,8 @@ class ApiServer(object):
             return objs[0]
         if resp.status_code == 404:
             return None
+        if resp.status_code == 400:
+            raise requests.exceptions.ConnectionError('Bad Request, retrying')
         err = 'Getting object failed (status code: {})'.format(
               resp.status_code)
         raise RuntimeError(err)
@@ -141,6 +143,8 @@ class ApiServer(object):
             except StopIteration:
                 return None
             return obj
+        if resp.status_code == 400:
+            raise requests.exceptions.ConnectionError('Bad Request, retrying')
         err = 'Getting object failed (status code: {})'.format(
               resp.status_code)
         raise RuntimeError(err)
@@ -163,6 +167,8 @@ class ApiServer(object):
             except StopIteration:
                 return None
             return obj
+        if resp.status_code == 400:
+            raise requests.exceptions.ConnectionError('Bad Request, retrying')
         err = 'Getting object failed (status code: {})'.format(
               resp.status_code)
         raise RuntimeError(err)
@@ -177,6 +183,8 @@ class ApiServer(object):
         if resp.status_code == 200:
             objs = resp.json()
             return objs
+        if resp.status_code == 400:
+            raise requests.exceptions.ConnectionError('Bad Request, retrying')
         err = 'Getting object failed (status code: {})'.format(
               resp.status_code)
         raise RuntimeError(err)
