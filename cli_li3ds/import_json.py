@@ -5,8 +5,6 @@ import pathlib
 from cliff.command import Command
 
 from . import api
-import numpy
-from pyquaternion import Quaternion
 
 
 class ImportJson(Command):
@@ -67,35 +65,24 @@ class ImportJson(Command):
                 obj_id = elem.pop('id', None)
                 if class_.type_ == "referential":
                     obj = class_(deps1[elem.pop('sensor')], elem)
+                elif class_.type_ == "transfos/type":
+                    obj = class_(elem)
+                    elem2 = elem.copy()
+                    elem2['name'] += '_inverse'
+                    elem2.pop('id', None)
+                    obj2 = class_(elem2)
+                    objs.add(obj2)
+                    obj.inv = obj2
                 elif class_.type_ == "transfo":
                     source = deps1[elem.pop('source')]
                     target = deps1[elem.pop('target')]
                     transfo_type = deps2[elem.pop('transfo_type')]
                     obj = class_(source, target, elem, transfo_type=transfo_type)
-                    obj.inv = None
-                    if transfo_type.obj['name'] == 'affine_quat':
-                        elem2 = elem.copy()
-                        elem2['name'] += '_inverse'
-                        elem2['parameters'] = elem['parameters'].copy()
-                        for i, param in enumerate(elem2['parameters']):
-                            # assuming unit quats here (otherwise, should be divided by norm)
-                            q = Quaternion(param['quat'])
-                            v = numpy.array(param['vec3'])
-                            q2 = q.inverse
-                            v2 = q2.rotate(-v)
-                            param = param.copy()
-                            param['quat'] = [x for x in q2.elements]
-                            param['vec3'] = [x for x in v2]
-                            elem2['parameters'][i] = param
-                            # validation
-                            x = numpy.array([i, 2*i, i*i])
-                            y = q.rotate(x)+v
-                            y = q2.rotate(y)+v2
-                            if numpy.linalg.norm(x-y) > 1e-8:
-                                raise RuntimeError("ERROR : inverse affine_quat computation failed")
-                        obj2 = class_(target, source, elem2, transfo_type=transfo_type)
-                        objs.add(obj2)
-                        obj.inv = obj2
+                    elem2 = elem.copy()
+                    elem2['name'] += '_inverse'
+                    obj2 = class_(target, source, elem2, transfo_type=transfo_type.inv)
+                    objs.add(obj2)
+                    obj.inv = obj2
                 elif class_.type_ == "session":
                     obj = class_(deps1[elem.pop('project')], deps2[elem.pop('platform')], elem)
                 elif class_.type_ == "transfotree":
