@@ -9,6 +9,7 @@ requirements = (
     'requests==2.13.0',
     'cliff==2.6.0',
     'requests==2.13.0',
+    'parse==1.9.0',
     'pytz==2017.2',
     'pyquaternion==0.9.0',
     'python-dateutil==2.6.0'

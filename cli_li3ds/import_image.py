@@ -4,6 +4,7 @@ import pathlib
 import json
 import pytz
 import re
+import parse
 
 from cliff.command import Command
 
@@ -30,15 +31,15 @@ class ImportImage(Command):
             nargs=2, type=float,
             help='image size (e.g. "1200 600") (optional)')
         parser.add_argument(
-            '--image-dir', '-f',
+            '--image-dir', '-d',
             help='base directory to search for images (optional, default is ".")')
         parser.add_argument(
             '--json-dir', '-j',
             type=pathlib.Path,
             help='directory including the json files with date/time information')
         parser.add_argument(
-            '--filename-pattern', '-p',
-            help='file name pattern')
+            '--filter', '-f',
+            help='file name filtering pattern')
         parser.add_argument(
             '--base-uri', '-b',
             help='base directory in image URIs (optional, default is None)')
@@ -48,6 +49,9 @@ class ImportImage(Command):
         parser.add_argument(
             '--referential-prefix', default='',
             help='referential name prefix (optional, default is no prefix)')
+        parser.add_argument(
+            '--pattern', '-p', default='{project}_{session}_{section}_{image}_{camera}_{suffix}',
+            help='pattern to extract metadata from the stem of the image file names')
         parser.add_argument(
             'filename', nargs='+',
             help='image file names, may be Unix-style patterns (e.g. *.jpg)')
@@ -78,51 +82,56 @@ class ImportImage(Command):
 
         for filename in parsed_args.filename:
             for image_path in image_dir.rglob(filename):
-                if parsed_args.filename_pattern:
-                    match = re.match(parsed_args.filename_pattern, image_path.name)
+                if parsed_args.filter:
+                    match = re.match(parsed_args.filter, image_path.name)
                     if not match:
                         continue
                 self.log.info('Importing {}'.format(image_path.relative_to(image_dir)))
                 self.handle_image(objs, args, image_dir, image_path, base_uri,
-                                  parsed_args.image_size, parsed_args.json_dir)
+                                  parsed_args.image_size, parsed_args.json_dir, parsed_args.pattern)
 
         objs.get_or_create()
         self.log.info('Success!\n')
 
     @classmethod
-    def handle_image(cls, objs, args, image_dir, image_path, base_uri, image_size, json_dir):
+    def handle_image(cls, objs, args, image_dir, image_path, base_uri, image_size, json_dir, pattern):
 
-        project_name, session_time, section_name, image_num, camera_num = \
-            parse_image_path(image_path)
+        parsed = parse.parse(pattern, image_path.stem)
+        if parsed:
+            parsed = parsed.named
+        else:
+            # self.log.error('filename parsing failed')
+            return
 
-        image_time = cls.lookup_image_datetime(
-            json_dir, session_time, section_name, image_path.stem)
+        image_time = cls.lookup_image_datetime(json_dir, parsed.get('session'), parsed.get('section'), image_path.stem)
 
         metadata = {
             'basename': image_path.name,
-            'camera_num': camera_num,
-            'project_name': project_name,
-            'section_name': section_name,
-            'session_time': parse_date(session_time),
+            'camera': parsed.get('camera','camera'),
+            'project': parsed.get('project','project'),
+            'section': parsed.get('section','section'),
+            'session': parse_date(parsed.get('session','0001010000')),
             'image_time_iso': api.isoformat(image_time),
+            'platform': 'Stereopolis II',
         }
+        print(parsed)
 
         sensor = {
             'type': 'camera',
-            'name': '{camera_num}',
+            'name': '{camera}',
             'description': 'Created while importing {basename}',
         }
         referential = {
-            'name': '{camera_num}',
+            'name': '{camera}',
         }
         platform = {
-            'name': 'Stereopolis II',
+            'name': '{platform}',
         }
         project = {
-            'name': '{project_name}',
+            'name': '{project}',
         }
         session = {
-            'name': '{session_time:%y%m%d%H%M}/{section_name}',
+            'name': '{session:%y%m%d%H%M}/{section}',
         }
         datasource = {
             'capture_start': '{image_time_iso}',
@@ -147,13 +156,14 @@ class ImportImage(Command):
         objs.add(datasource)
 
     @classmethod
-    def lookup_image_datetime(cls, json_dir, session_time, section_name, image_id):
-        if not json_dir:
+    def lookup_image_datetime(cls, json_dir, session, section, image_id):
+        if not json_dir or not session or not section:
             return None
+
         image_id_no_cam = '_'.join(image_id.split('_')[0:-1])
         if image_id_no_cam in cls.image_date_cache:
             return cls.image_date_cache[image_id_no_cam]
-        json_file = json_dir / '{}-{}.json'.format(session_time, section_name)
+        json_file = json_dir / '{}-{}.json'.format(session, section)
         if not json_file.is_file():
             err = '{} is not a file'.format(str(json_file))
             raise RuntimeError(err)
@@ -171,23 +181,11 @@ class ImportImage(Command):
         return cls.image_date_cache[image_id_no_cam]
 
 
-def parse_image_path(image_path):
-    parts = image_path.stem.split('_')
-    if len(parts) < 5:
-        err = 'Error:image filename structure is unknown'
-        raise RuntimeError(err)
-    project_name = parts[0]
-    session_time = parts[1]
-    section_name = parts[2]
-    image_num = parts[3]
-    camera_num = parts[4]
-    return project_name, session_time, section_name, image_num, camera_num
-
-
 def parse_date(date_string):
-    dt = datetime.datetime.strptime(date_string, '%y%m%d%H%M')
-    return pytz.UTC.localize(dt)
-
+    if date_string:
+        dt = datetime.datetime.strptime(date_string, '%y%m%d%H%M')
+        return pytz.UTC.localize(dt)
+    return None
 
 def sensor_camera(sensor, image_size):
     sensor['name'] = sensor['prefix'] + sensor['name']
